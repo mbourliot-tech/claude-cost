@@ -80,6 +80,7 @@ async function refresh() {
   renderModelWarnings(modelPrices);
 
   refreshAlerts().catch(() => {});
+  refreshPlans().catch(() => {});
 
   $("#kpi-cost").textContent = fmtUsd(summary.total_cost_usd);
   $("#kpi-calls").textContent = fmtNum(summary.calls);
@@ -353,6 +354,145 @@ async function resetPrice(btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = "Réinitialiser";
+  }
+}
+
+// ── Comparaison de plans ─────────────────────────────────────────────────────
+
+const PLANS = [
+  { name: "Pro",      price: 20,  color: "#5ee08a" },
+  { name: "Max 5×",  price: 100, color: "#ffb86b" },
+  { name: "Max 20×", price: 200, color: "#ff5572" },
+];
+
+let planChart = null;
+
+async function refreshPlans() {
+  const rows = await jget("/api/by-month?months=12");
+  renderPlansChart(rows);
+  renderPlansTable(rows);
+}
+
+function currentYearMonth() {
+  const n = new Date();
+  return `${n.getUTCFullYear()}-${String(n.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function renderPlansChart(rows) {
+  const ctx = $("#chart-plans").getContext("2d");
+  const current = currentYearMonth();
+  // Tous les mois de la période + mois courant, avec $0 pour les mois sans données
+  const allM = [...allCompletedMonths(12), current];
+  const costByMonth = Object.fromEntries(rows.map((r) => [r.month, r.cost_usd]));
+  const labels = allM;
+  const costs  = allM.map((m) => costByMonth[m] || 0);
+  // Flat datasets for plan thresholds
+  const planDatasets = PLANS.map((p) => ({
+    type: "line",
+    label: `${p.name} ($${p.price})`,
+    data: allM.map(() => p.price),
+    borderColor: p.color,
+    borderWidth: 1.5,
+    borderDash: [5, 4],
+    pointRadius: 0,
+    fill: false,
+  }));
+  if (planChart) planChart.destroy();
+  planChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Coût API réel",
+          data: costs,
+          backgroundColor: allM.map((m) =>
+            m === current ? "rgba(201,139,255,0.45)" : "rgba(201,139,255,0.75)"
+          ),
+          borderColor: "#c98bff",
+          borderWidth: 1,
+        },
+        ...planDatasets,
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: "#e6e8ee", font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: $${(ctx.parsed.y).toFixed(2)}`,
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: "#8a93a6", font: { size: 11 } }, grid: { color: "#2a2f3a" } },
+        y: { ticks: { color: "#8a93a6", callback: (v) => "$" + v }, grid: { color: "#2a2f3a" } },
+      },
+    },
+  });
+}
+
+function allCompletedMonths(months) {
+  // Génère la liste de tous les YYYY-MM des (months-1) derniers mois complets
+  const current = currentYearMonth();
+  const result = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 1; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    result.push(ym);
+  }
+  return result;
+}
+
+function renderPlansTable(rows) {
+  const current = currentYearMonth();
+  // Tous les mois complets de la période, même ceux sans données (= $0 d'API)
+  const allMonths = allCompletedMonths(12);
+  const n = allMonths.length;
+  const costByMonth = Object.fromEntries(rows.map((r) => [r.month, r.cost_usd]));
+  const totalApi = allMonths.reduce((s, m) => s + (costByMonth[m] || 0), 0);
+
+  const tbody = $("#tbl-plans-body");
+  tbody.innerHTML = "";
+
+  for (const plan of PLANS) {
+    const totalPlan = plan.price * n;
+    const delta = totalApi - totalPlan;           // positif = sub moins chère
+    const profitable = allMonths.filter((m) => (costByMonth[m] || 0) > plan.price).length;
+    const regularity = n > 0 ? profitable / n : 0;
+    const regClass = regularity >= 0.75 ? "" : regularity >= 0.4 ? "mid" : "low";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="color:${plan.color};font-weight:600">${plan.name}</td>
+      <td class="right">$${plan.price}</td>
+      <td class="right">$${totalPlan.toFixed(2)} <span style="color:var(--muted);font-size:11px">(${n}m)</span></td>
+      <td class="right">$${totalApi.toFixed(2)}</td>
+      <td class="right ${delta >= 0 ? "delta-pos" : "delta-neg"}">
+        ${delta >= 0 ? "+" : ""}$${Math.abs(delta).toFixed(2)}
+        <span style="color:var(--muted);font-size:10px">${delta >= 0 ? "économisé" : "perdu"}</span>
+      </td>
+      <td class="right">${profitable}/${n}</td>
+      <td class="right">
+        <span class="regularity-bar"><span class="regularity-fill ${regClass}" style="width:${(regularity*100).toFixed(0)}%"></span></span>
+        ${(regularity * 100).toFixed(0)}%
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  const currentRow = rows.find((r) => r.month === current);
+  const noteEl = $("#plans-note");
+  if (currentRow) {
+    const projected = currentRow.cost_usd / (new Date().getUTCDate()) * 30;
+    noteEl.textContent =
+      `Mois en cours (${current}) : $${currentRow.cost_usd.toFixed(2)} dépensés → projection $${projected.toFixed(2)}/mois. ` +
+      `Les mois rentables = mois où votre dépense API dépasse le prix de l'abonnement. ` +
+      `Δ économie = différence sur ${n} mois complets.`;
+  } else {
+    noteEl.textContent = `Analyse sur ${n} mois complets. Δ économie = différence totale vs abonnement.`;
   }
 }
 

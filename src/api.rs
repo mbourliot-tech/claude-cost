@@ -41,6 +41,7 @@ pub fn router(store: Arc<Store>, projects_dir: PathBuf) -> Router {
         .route("/api/by-hour", get(api_by_hour))
         .route("/api/model-prices", get(api_model_prices))
         .route("/api/model-prices/{model}", put(api_put_model_price).delete(api_delete_model_price))
+        .route("/api/by-month", get(api_by_month))
         .route("/api/alerts", get(api_list_alerts).post(api_create_alert))
         .route("/api/alerts/{id}", put(api_update_alert).delete(api_delete_alert))
         .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
@@ -96,6 +97,16 @@ struct DaysQuery {
 
 async fn api_by_day(State(s): State<AppState>, Query(q): Query<DaysQuery>) -> Result<Json<serde_json::Value>, ApiErr> {
     let rows = s.store.by_day(q.days.unwrap_or(30))?;
+    Ok(Json(serde_json::to_value(rows)?))
+}
+
+#[derive(Debug, Deserialize)]
+struct MonthsQuery {
+    months: Option<i64>,
+}
+
+async fn api_by_month(State(s): State<AppState>, Query(q): Query<MonthsQuery>) -> Result<Json<serde_json::Value>, ApiErr> {
+    let rows = s.store.by_month(q.months.unwrap_or(12))?;
     Ok(Json(serde_json::to_value(rows)?))
 }
 

@@ -190,6 +190,40 @@ canvas { max-height: 280px; }
 .btn-sm.danger { border-color: var(--warn); color: var(--warn); }
 .btn-sm:disabled { opacity: 0.4; cursor: default; }
 
+/* Plan comparison card */
+.plans-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.plans-chart-wrap canvas { max-height: 220px; }
+.plans-table-wrap { overflow-x: auto; }
+.delta-pos { color: var(--good); font-weight: 600; }
+.delta-neg { color: var(--warn); font-weight: 600; }
+.regularity-bar {
+  display: inline-block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  width: 60px;
+  vertical-align: middle;
+  position: relative;
+  margin-right: 4px;
+}
+.regularity-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  border-radius: 3px;
+  background: var(--good);
+}
+.regularity-fill.mid { background: var(--warn); }
+.regularity-fill.low { background: #ff5572; }
+
+@media (max-width: 900px) {
+  .plans-layout { grid-template-columns: 1fr; }
+}
+
 /* Model unknown warning banner */
 .model-warning-banner {
   display: flex;

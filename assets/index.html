@@ -127,6 +127,32 @@
       </table>
     </div>
 
+    <div class="card wide" id="card-plans">
+      <h2>Comparaison de plans</h2>
+      <div class="plans-layout">
+        <div class="plans-chart-wrap">
+          <canvas id="chart-plans"></canvas>
+        </div>
+        <div class="plans-table-wrap">
+          <table id="tbl-plans">
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th class="right">Prix/mois</th>
+                <th class="right">Coût sur période</th>
+                <th class="right">Votre API</th>
+                <th class="right">Δ économie</th>
+                <th class="right">Mois rentables</th>
+                <th class="right">Régularité</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-plans-body"></tbody>
+          </table>
+          <p class="modal-note" id="plans-note"></p>
+        </div>
+      </div>
+    </div>
+
     <div class="card wide" id="card-alerts">
       <div class="card-header">
         <h2>Alertes budget</h2>

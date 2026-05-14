@@ -219,6 +219,27 @@ impl Store {
     }
 
     /// Group costs by calendar day (UTC since timestamps are ISO Z). `days` = window length.
+    pub fn by_month(&self, months: i64) -> Result<Vec<ByMonth>> {
+        let conn = self.conn.lock().unwrap();
+        let sql = "\
+            SELECT strftime('%Y-%m', ts) AS month, SUM(cost_usd), COUNT(*) \
+            FROM usage \
+            WHERE ts >= date('now', ?1) \
+            GROUP BY month ORDER BY month ASC";
+        let offset = format!("-{} months", months.max(1));
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt
+            .query_map(params![offset], |r| {
+                Ok(ByMonth {
+                    month: r.get(0)?,
+                    cost_usd: r.get(1)?,
+                    calls: r.get::<_, i64>(2)? as u64,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
     pub fn by_day(&self, days: i64) -> Result<Vec<ByDay>> {
         let conn = self.conn.lock().unwrap();
         let sql = "\
@@ -474,6 +495,13 @@ pub struct ByModel {
     pub cache_read_tokens: u64,
     pub cache_5m_tokens: u64,
     pub cache_1h_tokens: u64,
+    pub calls: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ByMonth {
+    pub month: String,
+    pub cost_usd: f64,
     pub calls: u64,
 }
 
