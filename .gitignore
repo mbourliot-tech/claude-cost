@@ -1,5 +1,28 @@
+# Build output
 /target
+
+# SQLite databases
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
 *.db
+
+# Editor & IDE
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+.zed/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
