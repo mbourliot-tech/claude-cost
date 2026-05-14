@@ -44,10 +44,29 @@ Aucune donnée ne quitte votre machine. Aucune clé API requise.
 
 ## Installation
 
+### Télécharger le binaire (recommandé)
+
+Téléchargez le binaire pré-compilé depuis la page [Releases](https://github.com/mbourliot-tech/claude-cost/releases) — aucun prérequis Rust nécessaire.
+
+| Plateforme | Fichier |
+|------------|---------|
+| Windows | `claude-cost-windows-x86_64.exe` |
+| macOS (Apple Silicon) | `claude-cost-macos-aarch64` |
+| macOS (Intel) | `claude-cost-macos-x86_64` |
+| Linux | `claude-cost-linux-x86_64` |
+
+Sur macOS / Linux, rendre le binaire exécutable :
+```bash
+chmod +x claude-cost-macos-aarch64
+./claude-cost-macos-aarch64
+```
+
 ### Depuis les sources
 
+Nécessite [Rust](https://rustup.rs) 1.75+.
+
 ```bash
-git clone <dépôt>
+git clone https://github.com/mbourliot-tech/claude-cost.git
 cd claude-cost
 cargo install --path .
 ```
@@ -58,6 +77,7 @@ Le binaire est installé dans `~/.cargo/bin/claude-cost`.
 
 ```bash
 cd claude-cost
+git pull
 cargo install --path .
 ```
 

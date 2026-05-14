@@ -44,10 +44,29 @@ No data leaves your machine. No API key required.
 
 ## Installation
 
+### Download binary (recommended)
+
+Grab the latest pre-compiled binary from the [Releases](https://github.com/mbourliot-tech/claude-cost/releases) page — no Rust toolchain required.
+
+| Platform | File |
+|----------|------|
+| Windows  | `claude-cost-windows-x86_64.exe` |
+| macOS (Apple Silicon) | `claude-cost-macos-aarch64` |
+| macOS (Intel) | `claude-cost-macos-x86_64` |
+| Linux | `claude-cost-linux-x86_64` |
+
+On macOS / Linux, make the binary executable:
+```bash
+chmod +x claude-cost-macos-aarch64
+./claude-cost-macos-aarch64
+```
+
 ### From source
 
+Requires [Rust](https://rustup.rs) 1.75+.
+
 ```bash
-git clone <repo>
+git clone https://github.com/mbourliot-tech/claude-cost.git
 cd claude-cost
 cargo install --path .
 ```
@@ -58,6 +77,7 @@ The binary is installed to `~/.cargo/bin/claude-cost`.
 
 ```bash
 cd claude-cost
+git pull
 cargo install --path .
 ```
 
