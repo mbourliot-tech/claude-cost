@@ -1,3 +1,119 @@
+// ── Internationalisation ──────────────────────────────────────────────────────
+
+const TRANSLATIONS = {
+  fr: {
+    'tab.overview': "Vue d'ensemble", 'tab.sessions': "Sessions", 'tab.plans': "Plans", 'tab.alerts': "Alertes",
+    'ctrl.period': "Période", 'ctrl.today': "Aujourd'hui", 'ctrl.7d': "7 jours", 'ctrl.30d': "30 jours",
+    'ctrl.month': "Ce mois", 'ctrl.all': "Tout", 'ctrl.day': "Jour précis…",
+    'ctrl.rescan': "Rescan", 'ctrl.prices': "Prix des modèles", 'ctrl.live': "Temps réel",
+    'kpi.cost': "Coût total", 'kpi.calls': "Appels API", 'kpi.sessions': "Sessions", 'kpi.tokens': "Tokens (entrée + sortie)",
+    'cache.hitrate': "Cache hit rate", 'cache.read': "Tokens lus depuis cache", 'cache.savings': "Économies brutes",
+    'cache.write': "Surcoût écriture", 'cache.net': "Gain net cache",
+    'chart.day': "Coût par jour", 'chart.hour.today': "Coût par heure — aujourd'hui",
+    'chart.hour.day': "Coût par heure — ", 'chart.model': "Répartition par modèle",
+    'chart.projects': "Top projets", 'chart.weekday': "Coût par jour de semaine", 'chart.hourofday': "Coût par heure de la journée",
+    'chart.cost_usd': "Coût USD", 'chart.cache_tok': "Cache read (tok)",
+    'sessions.limit': "Limite", 'sessions.project': "Projet", 'sessions.all': "Tous", 'sessions.export': "↓ Export CSV",
+    'sessions.col.session': "Session", 'sessions.col.project': "Projet", 'sessions.col.start': "Début",
+    'sessions.col.end': "Fin", 'sessions.col.cost': "Coût", 'sessions.col.calls': "Appels",
+    'sessions.col.cache': "Cache hit", 'sessions.col.ctx': "Ctx max",
+    'plans.title': "Comparaison de plans", 'plans.period': "Période", 'plans.months_label': "mois",
+    'plans.col.plan': "Plan", 'plans.col.price': "Prix/mois", 'plans.col.total': "Coût sur période",
+    'plans.col.api': "Votre API", 'plans.col.delta': "Δ économie", 'plans.col.months': "Mois rentables", 'plans.col.regularity': "Régularité",
+    'plans.saved': "économisé", 'plans.lost': "perdu", 'plans.week_label': "Semaine", 'plans.month_label': "Mois",
+    'alerts.title': "Alertes budget", 'alerts.add': "+ Nouvelle alerte", 'alerts.empty': "Aucune alerte configurée.",
+    'alerts.col.name': "Nom", 'alerts.col.period': "Période", 'alerts.col.project': "Projet",
+    'alerts.col.threshold': "Seuil", 'alerts.col.current': "Actuel", 'alerts.col.status': "Statut",
+    'modal.prices.title': "Prix des modèles", 'modal.prices.model': "Modèle", 'modal.prices.input': "Input",
+    'modal.prices.output': "Output", 'modal.prices.cache': "Cache read",
+    'modal.prices.note': "Cache read vide = multiplicateur Anthropic ×0.1 sur l'input.",
+    'modal.alert.title': "Nouvelle alerte", 'modal.alert.name': "Nom", 'modal.alert.period': "Période",
+    'modal.alert.week': "Cette semaine", 'modal.alert.month': "Ce mois", 'modal.alert.project': "Projet",
+    'modal.alert.project_hint': "(vide = global)", 'modal.alert.global': "Global (tous projets)",
+    'modal.alert.threshold': "Seuil ($)", 'modal.alert.cancel': "Annuler", 'modal.alert.create': "Créer",
+    'banner.configure': "Configurer les prix →", 'banner.goto': "Voir les alertes →",
+    'banner.models_a': "modèle(s) sans prix configuré — appels comptabilisés à $0 :",
+    'trend.today': "vs hier", 'trend.7d': "vs 7j préc.", 'trend.30d': "vs 30j préc.", 'trend.month': "vs mois préc.", 'trend.day': "vs j-1",
+    'btn.save': "Sauvegarder", 'btn.reset': "Réinitialiser", 'badge.custom': "Personnalisé", 'badge.unknown': "Inconnu",
+    'theme.dark': "🌙 Sombre", 'theme.light': "☀️ Clair", 'theme.midnight': "🌌 Minuit",
+    'global': "global", 'week': "cette semaine", 'month_period': "ce mois",
+  },
+  en: {
+    'tab.overview': "Overview", 'tab.sessions': "Sessions", 'tab.plans': "Plans", 'tab.alerts': "Alerts",
+    'ctrl.period': "Period", 'ctrl.today': "Today", 'ctrl.7d': "7 days", 'ctrl.30d': "30 days",
+    'ctrl.month': "This month", 'ctrl.all': "All", 'ctrl.day': "Specific day…",
+    'ctrl.rescan': "Rescan", 'ctrl.prices': "Model prices", 'ctrl.live': "Live",
+    'kpi.cost': "Total cost", 'kpi.calls': "API calls", 'kpi.sessions': "Sessions", 'kpi.tokens': "Tokens (in + out)",
+    'cache.hitrate': "Cache hit rate", 'cache.read': "Tokens read from cache", 'cache.savings': "Gross savings",
+    'cache.write': "Write overhead", 'cache.net': "Net cache gain",
+    'chart.day': "Cost per day", 'chart.hour.today': "Cost per hour — today",
+    'chart.hour.day': "Cost per hour — ", 'chart.model': "By model",
+    'chart.projects': "Top projects", 'chart.weekday': "Cost by weekday", 'chart.hourofday': "Cost by hour of day",
+    'chart.cost_usd': "Cost USD", 'chart.cache_tok': "Cache read (tok)",
+    'sessions.limit': "Limit", 'sessions.project': "Project", 'sessions.all': "All", 'sessions.export': "↓ Export CSV",
+    'sessions.col.session': "Session", 'sessions.col.project': "Project", 'sessions.col.start': "Start",
+    'sessions.col.end': "End", 'sessions.col.cost': "Cost", 'sessions.col.calls': "Calls",
+    'sessions.col.cache': "Cache hit", 'sessions.col.ctx': "Max ctx",
+    'plans.title': "Plan comparison", 'plans.period': "Period", 'plans.months_label': "months",
+    'plans.col.plan': "Plan", 'plans.col.price': "Price/month", 'plans.col.total': "Cost over period",
+    'plans.col.api': "Your API", 'plans.col.delta': "Δ savings", 'plans.col.months': "Profitable months", 'plans.col.regularity': "Consistency",
+    'plans.saved': "saved", 'plans.lost': "lost", 'plans.week_label': "Week", 'plans.month_label': "Month",
+    'alerts.title': "Budget alerts", 'alerts.add': "+ New alert", 'alerts.empty': "No alerts configured.",
+    'alerts.col.name': "Name", 'alerts.col.period': "Period", 'alerts.col.project': "Project",
+    'alerts.col.threshold': "Threshold", 'alerts.col.current': "Current", 'alerts.col.status': "Status",
+    'modal.prices.title': "Model prices", 'modal.prices.model': "Model", 'modal.prices.input': "Input",
+    'modal.prices.output': "Output", 'modal.prices.cache': "Cache read",
+    'modal.prices.note': "Empty cache read = Anthropic ×0.1 multiplier on input.",
+    'modal.alert.title': "New alert", 'modal.alert.name': "Name", 'modal.alert.period': "Period",
+    'modal.alert.week': "This week", 'modal.alert.month': "This month", 'modal.alert.project': "Project",
+    'modal.alert.project_hint': "(empty = global)", 'modal.alert.global': "Global (all projects)",
+    'modal.alert.threshold': "Threshold ($)", 'modal.alert.cancel': "Cancel", 'modal.alert.create': "Create",
+    'banner.configure': "Configure prices →", 'banner.goto': "View alerts →",
+    'banner.models_a': "model(s) without configured price — billed at $0:",
+    'trend.today': "vs yesterday", 'trend.7d': "vs prev 7d", 'trend.30d': "vs prev 30d", 'trend.month': "vs prev month", 'trend.day': "vs day-1",
+    'btn.save': "Save", 'btn.reset': "Reset", 'badge.custom': "Custom", 'badge.unknown': "Unknown",
+    'theme.dark': "🌙 Dark", 'theme.light': "☀️ Light", 'theme.midnight': "🌌 Midnight",
+    'global': "global", 'week': "this week", 'month_period': "this month",
+  },
+};
+
+let currentLang  = localStorage.getItem('cc-lang')  || 'fr';
+let currentTheme = localStorage.getItem('cc-theme') || 'dark';
+
+function t(key) { return TRANSLATIONS[currentLang][key] ?? TRANSLATIONS['fr'][key] ?? key; }
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-opt]').forEach((el) => {
+    el.textContent = t(el.dataset.i18nOpt);
+  });
+  document.documentElement.lang = currentLang;
+}
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('cc-theme', theme);
+}
+
+function applyLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('cc-lang', lang);
+  applyTranslations();
+}
+
+function chartColors() {
+  const s = getComputedStyle(document.documentElement);
+  const v = (n) => s.getPropertyValue(n).trim();
+  return { muted: v('--muted'), border: v('--border'), text: v('--text'), surface2: v('--surface-2') };
+}
+
+// Initialise thème et langue au chargement
+applyTheme(currentTheme);
+applyTranslations();
+
 const $ = (s) => document.querySelector(s);
 const fmtUsd = (n) => "$" + (n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtNum = (n) => (n ?? 0).toLocaleString();
@@ -132,7 +248,7 @@ async function refresh() {
 
   renderCacheStats(cacheStats);
   if (isToday) {
-    const label = period === "day" ? `Coût par heure — ${$("#date-picker").value}` : "Coût par heure — aujourd'hui";
+    const label = period === "day" ? t('chart.hour.day') + $("#date-picker").value : t('chart.hour.today');
     $("#chart-time-title").textContent = label;
     renderHourChart(timeData);
   } else {
@@ -158,7 +274,7 @@ function renderTrends(curr, prev, period) {
     { id: "kpi-sessions", curr: curr.sessions,                                          prev: prev?.sessions,           costDir: false },
     { id: "kpi-tokens",   curr: (curr.input_tokens||0)+(curr.output_tokens||0),         prev: prev ? (prev.input_tokens||0)+(prev.output_tokens||0) : null, costDir: false },
   ];
-  const prevLabel = { today: "vs hier", "7d": "vs 7j préc.", "30d": "vs 30j préc.", month: "vs mois préc.", day: "vs j-1" }[period] || "";
+  const prevLabel = { today: t('trend.today'), "7d": t('trend.7d'), "30d": t('trend.30d'), month: t('trend.month'), day: t('trend.day') }[period] || "";
   for (const f of fields) {
     const el = document.getElementById(f.id + "-trend");
     if (!el) continue;
@@ -171,14 +287,17 @@ function renderTrends(curr, prev, period) {
   }
 }
 
-const CHART_OPTS = {
-  responsive: true,
-  plugins: { legend: { display: false } },
-  scales: {
-    x: { ticks: { color: "#8a93a6", font: { size: 11 } }, grid: { color: "#2a2f3a" } },
-    y: { ticks: { color: "#8a93a6", callback: (v) => "$" + v, font: { size: 11 } }, grid: { color: "#2a2f3a" } },
-  },
-};
+function miniChartOpts() {
+  const c = chartColors();
+  return {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: c.muted, font: { size: 11 } }, grid: { color: c.border } },
+      y: { ticks: { color: c.muted, callback: (v) => "$" + v, font: { size: 11 } }, grid: { color: c.border } },
+    },
+  };
+}
 
 function renderWeekdayChart(rows) {
   const ctx = $("#chart-weekday")?.getContext("2d");
@@ -186,11 +305,8 @@ function renderWeekdayChart(rows) {
   if (weekdayChart) weekdayChart.destroy();
   weekdayChart = new Chart(ctx, {
     type: "bar",
-    data: {
-      labels: rows.map((r) => r.label),
-      datasets: [{ data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(107,209,255,0.65)", borderColor: "#6bd1ff", borderWidth: 1 }],
-    },
-    options: CHART_OPTS,
+    data: { labels: rows.map((r) => r.label), datasets: [{ data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(107,209,255,0.65)", borderColor: "#6bd1ff", borderWidth: 1 }] },
+    options: miniChartOpts(),
   });
 }
 
@@ -200,11 +316,8 @@ function renderHourOfDayChart(rows) {
   if (hourOfDayChart) hourOfDayChart.destroy();
   hourOfDayChart = new Chart(ctx, {
     type: "bar",
-    data: {
-      labels: rows.map((r) => r.hour + "h"),
-      datasets: [{ data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(94,224,138,0.65)", borderColor: "#5ee08a", borderWidth: 1 }],
-    },
-    options: CHART_OPTS,
+    data: { labels: rows.map((r) => r.hour + "h"), datasets: [{ data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(94,224,138,0.65)", borderColor: "#5ee08a", borderWidth: 1 }] },
+    options: miniChartOpts(),
   });
 }
 
@@ -220,50 +333,46 @@ function renderCacheStats(s) {
   netEl.className = "value " + (net >= 0 ? "good" : "warn");
 }
 
+function chartScales(c) {
+  return {
+    x: { ticks: { color: c.muted }, grid: { color: c.border } },
+    y: { ticks: { color: c.muted, callback: (v) => "$" + v }, grid: { color: c.border } },
+  };
+}
+
 function renderDayChart(rows) {
+  const c = chartColors();
   const ctx = $("#chart-day").getContext("2d");
-  const labels = rows.map((r) => r.date);
-  const costs = rows.map((r) => r.cost_usd);
   if (dayChart) dayChart.destroy();
   dayChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels,
-      datasets: [{ label: "Coût USD", data: costs, backgroundColor: "rgba(201, 139, 255, 0.7)", borderColor: "#c98bff", borderWidth: 1 }],
+      labels: rows.map((r) => r.date),
+      datasets: [{ label: t('chart.cost_usd'), data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(201,139,255,0.7)", borderColor: "#c98bff", borderWidth: 1 }],
     },
-    options: {
-      responsive: true,
-      plugins: { legend: { labels: { color: "#e6e8ee" } } },
-      scales: {
-        x: { ticks: { color: "#8a93a6" }, grid: { color: "#2a2f3a" } },
-        y: { ticks: { color: "#8a93a6", callback: (v) => "$" + v }, grid: { color: "#2a2f3a" } },
-      },
-    },
+    options: { responsive: true, plugins: { legend: { labels: { color: c.text } } }, scales: chartScales(c) },
   });
 }
 
 function renderHourChart(rows) {
+  const c = chartColors();
   const ctx = $("#chart-day").getContext("2d");
-  // Format "2026-05-14T18:00:00Z" → "18h"
-  const labels = rows.map((r) => r.hour.substring(11, 13) + "h");
-  const costs = rows.map((r) => r.cost_usd);
-  const cacheRead = rows.map((r) => r.cache_read_tokens);
   if (dayChart) dayChart.destroy();
   dayChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels,
+      labels: rows.map((r) => r.hour.substring(11, 13) + "h"),
       datasets: [
-        { label: "Coût USD", data: costs, backgroundColor: "rgba(201, 139, 255, 0.7)", borderColor: "#c98bff", borderWidth: 1, yAxisID: "yCost" },
-        { label: "Cache read (tok)", data: cacheRead, type: "line", borderColor: "#6bd1ff", backgroundColor: "rgba(107,209,255,0.15)", borderWidth: 2, pointRadius: 3, tension: 0.3, yAxisID: "yTok" },
+        { label: t('chart.cost_usd'), data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(201,139,255,0.7)", borderColor: "#c98bff", borderWidth: 1, yAxisID: "yCost" },
+        { label: t('chart.cache_tok'), data: rows.map((r) => r.cache_read_tokens), type: "line", borderColor: "#6bd1ff", backgroundColor: "rgba(107,209,255,0.15)", borderWidth: 2, pointRadius: 3, tension: 0.3, yAxisID: "yTok" },
       ],
     },
     options: {
       responsive: true,
-      plugins: { legend: { labels: { color: "#e6e8ee" } } },
+      plugins: { legend: { labels: { color: c.text } } },
       scales: {
-        x: { ticks: { color: "#8a93a6" }, grid: { color: "#2a2f3a" } },
-        yCost: { position: "left",  ticks: { color: "#c98bff", callback: (v) => "$" + v }, grid: { color: "#2a2f3a" } },
+        x: { ticks: { color: c.muted }, grid: { color: c.border } },
+        yCost: { position: "left",  ticks: { color: "#c98bff", callback: (v) => "$" + v }, grid: { color: c.border } },
         yTok:  { position: "right", ticks: { color: "#6bd1ff", callback: (v) => fmtTok(v) }, grid: { display: false } },
       },
     },
@@ -271,15 +380,14 @@ function renderHourChart(rows) {
 }
 
 function renderModelChart(rows) {
+  const c = chartColors();
   const ctx = $("#chart-model").getContext("2d");
-  const labels = rows.map((r) => r.model);
-  const costs = rows.map((r) => r.cost_usd);
   const palette = ["#c98bff", "#6bd1ff", "#5ee08a", "#ffb86b", "#ff7f9c", "#a0a3ff", "#ffd166"];
   if (modelChart) modelChart.destroy();
   modelChart = new Chart(ctx, {
     type: "doughnut",
-    data: { labels, datasets: [{ data: costs, backgroundColor: labels.map((_, i) => palette[i % palette.length]) }] },
-    options: { responsive: true, plugins: { legend: { position: "right", labels: { color: "#e6e8ee" } } } },
+    data: { labels: rows.map((r) => r.model), datasets: [{ data: rows.map((r) => r.cost_usd), backgroundColor: rows.map((_, i) => palette[i % palette.length]) }] },
+    options: { responsive: true, plugins: { legend: { position: "right", labels: { color: c.text } } } },
   });
 }
 
@@ -418,6 +526,21 @@ setInterval(async () => {
 
 // ── Navigation par onglets ────────────────────────────────────────────────────
 
+// ── Sélecteurs langue / thème ─────────────────────────────────────────────────
+
+document.getElementById("lang-select").value = currentLang;
+document.getElementById("theme-select").value = currentTheme;
+
+document.getElementById("lang-select").addEventListener("change", (e) => {
+  applyLang(e.target.value);
+  refresh().catch(() => {});
+});
+
+document.getElementById("theme-select").addEventListener("change", (e) => {
+  applyTheme(e.target.value);
+  refresh().catch(() => {});
+});
+
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
@@ -468,8 +591,8 @@ function renderPrices() {
 
 function buildPriceRowHtml(r) {
   const badge = r.is_override
-    ? `<span class="badge">Personnalisé</span>`
-    : (!r.is_known ? `<span class="badge badge-unknown">Inconnu</span>` : "");
+    ? `<span class="badge">${t('badge.custom')}</span>`
+    : (!r.is_known ? `<span class="badge badge-unknown">${t('badge.unknown')}</span>` : "");
   const cacheDisplay = r.cache_read_per_mtok != null ? r.cache_read_per_mtok : "";
   return `
     <td>${escapeHtml(r.model)}${badge}</td>
@@ -548,6 +671,7 @@ function currentYearMonth() {
 }
 
 function renderPlansChart(rows, months = 12) {
+  const c = chartColors();
   const ctx = $("#chart-plans").getContext("2d");
   const current = currentYearMonth();
   // Tous les mois de la période + mois courant, avec $0 pour les mois sans données
@@ -573,7 +697,7 @@ function renderPlansChart(rows, months = 12) {
       labels,
       datasets: [
         {
-          label: "Coût API réel",
+          label: t('chart.cost_usd'),
           data: costs,
           backgroundColor: allM.map((m) =>
             m === current ? "rgba(201,139,255,0.45)" : "rgba(201,139,255,0.75)"
@@ -587,16 +711,12 @@ function renderPlansChart(rows, months = 12) {
     options: {
       responsive: true,
       plugins: {
-        legend: { labels: { color: "#e6e8ee", font: { size: 11 } } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: $${(ctx.parsed.y).toFixed(2)}`,
-          },
-        },
+        legend: { labels: { color: c.text, font: { size: 11 } } },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: $${(ctx.parsed.y).toFixed(2)}` } },
       },
       scales: {
-        x: { ticks: { color: "#8a93a6", font: { size: 11 } }, grid: { color: "#2a2f3a" } },
-        y: { ticks: { color: "#8a93a6", callback: (v) => "$" + v }, grid: { color: "#2a2f3a" } },
+        x: { ticks: { color: c.muted, font: { size: 11 } }, grid: { color: c.border } },
+        y: { ticks: { color: c.muted, callback: (v) => "$" + v }, grid: { color: c.border } },
       },
     },
   });
@@ -641,7 +761,7 @@ function renderPlansTable(rows, months = 12) {
       <td class="right">$${totalApi.toFixed(2)}</td>
       <td class="right ${delta >= 0 ? "delta-pos" : "delta-neg"}">
         ${delta >= 0 ? "+" : ""}$${Math.abs(delta).toFixed(2)}
-        <span style="color:var(--muted);font-size:10px">${delta >= 0 ? "économisé" : "perdu"}</span>
+        <span style="color:var(--muted);font-size:10px">${delta >= 0 ? t('plans.saved') : t('plans.lost')}</span>
       </td>
       <td class="right">${profitable}/${n}</td>
       <td class="right">
@@ -681,7 +801,7 @@ function renderModelWarnings(models) {
   banner.classList.remove("hidden");
   const names = unknowns.map((m) => escapeHtml(m.model)).join(", ");
   $("#model-warning-text").textContent =
-    `${unknowns.length} modèle(s) sans prix configuré — appels comptabilisés à $0 : ${names}.`;
+    `${unknowns.length} ${t('banner.models_a')} ${names}.`;
 }
 
 $("#model-warning-configure").addEventListener("click", openPricesModal);
@@ -711,7 +831,7 @@ function renderAlertBanner(alerts) {
   tabBadge.classList.remove("hidden");
   banner.classList.remove("hidden");
   const msgs = triggered.map((a) => {
-    const period = a.period === "week" ? "cette semaine" : "ce mois";
+    const period = a.period === "week" ? t('week') : t('month_period');
     const proj = a.project_path ? ` [${shortenPath(a.project_path)}]` : "";
     return `${escapeHtml(a.name)}${proj} : ${fmtUsd(a.current_usd)} / ${fmtUsd(a.threshold_usd)} ${period}`;
   });
@@ -733,7 +853,7 @@ function renderAlertsTable(alerts) {
   for (const a of alerts) {
     const tr = document.createElement("tr");
     tr.dataset.id = a.id;
-    const periodLabel = a.period === "week" ? "Semaine" : "Mois";
+    const periodLabel = a.period === "week" ? t('plans.week_label') : t('plans.month_label');
     const proj = a.project_path ? escapeHtml(shortenPath(a.project_path)) : "<em style='color:var(--muted)'>global</em>";
     const pct = a.threshold_usd > 0 ? Math.min(100, (a.current_usd / a.threshold_usd) * 100).toFixed(0) : 0;
     const statusClass = a.is_triggered ? "status-warn" : "status-ok";

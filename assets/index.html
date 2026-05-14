@@ -11,20 +11,31 @@
   <header>
     <h1>claude-cost</h1>
     <div class="controls">
-      <label>Période
+      <label><span data-i18n="ctrl.period">Période</span>
         <select id="period">
-          <option value="today" selected>Aujourd'hui</option>
-          <option value="7d">7 jours</option>
-          <option value="30d">30 jours</option>
-          <option value="month">Ce mois</option>
-          <option value="all">Tout</option>
-          <option value="day">Jour précis…</option>
+          <option value="today" selected data-i18n-opt="ctrl.today">Aujourd'hui</option>
+          <option value="7d"    data-i18n-opt="ctrl.7d">7 jours</option>
+          <option value="30d"   data-i18n-opt="ctrl.30d">30 jours</option>
+          <option value="month" data-i18n-opt="ctrl.month">Ce mois</option>
+          <option value="all"   data-i18n-opt="ctrl.all">Tout</option>
+          <option value="day"   data-i18n-opt="ctrl.day">Jour précis…</option>
         </select>
       </label>
       <input type="date" id="date-picker" class="hidden" />
-      <button id="rescan">Rescan</button>
-      <button id="open-prices">Prix des modèles <span id="unknown-badge" class="badge-count hidden">0</span></button>
-      <a href="/live" class="btn-live">Temps réel</a>
+      <button id="rescan" data-i18n="ctrl.rescan">Rescan</button>
+      <button id="open-prices"><span data-i18n="ctrl.prices">Prix des modèles</span> <span id="unknown-badge" class="badge-count hidden">0</span></button>
+      <a href="/live" class="btn-live" data-i18n="ctrl.live">Temps réel</a>
+      <div class="settings-group">
+        <select id="lang-select" title="Language">
+          <option value="fr">🇫🇷 FR</option>
+          <option value="en">🇬🇧 EN</option>
+        </select>
+        <select id="theme-select">
+          <option value="dark"     data-i18n-opt="theme.dark">🌙 Sombre</option>
+          <option value="light"    data-i18n-opt="theme.light">☀️ Clair</option>
+          <option value="midnight" data-i18n-opt="theme.midnight">🌌 Minuit</option>
+        </select>
+      </div>
     </div>
   </header>
 
@@ -32,47 +43,54 @@
   <div id="modal-prices" class="modal hidden">
     <div class="modal-box">
       <div class="modal-header">
-        <h2>Prix des modèles <span class="unit">$/Mtok</span></h2>
+        <h2><span data-i18n="modal.prices.title">Prix des modèles</span> <span class="unit">$/Mtok</span></h2>
         <button class="modal-close" id="close-prices">&times;</button>
       </div>
       <table id="tbl-prices">
         <thead>
-          <tr><th>Modèle</th><th class="right">Input</th><th class="right">Output</th><th class="right">Cache read</th><th></th></tr>
+          <tr>
+            <th data-i18n="modal.prices.model">Modèle</th>
+            <th class="right" data-i18n="modal.prices.input">Input</th>
+            <th class="right" data-i18n="modal.prices.output">Output</th>
+            <th class="right" data-i18n="modal.prices.cache">Cache read</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody id="tbl-prices-body"></tbody>
       </table>
-      <p class="modal-note">Cache read vide = multiplicateur Anthropic ×0.1 sur l'input.</p>
+      <p class="modal-note" data-i18n="modal.prices.note">Cache read vide = multiplicateur Anthropic ×0.1 sur l'input.</p>
     </div>
   </div>
 
   <div id="modal-alert" class="modal hidden">
     <div class="modal-box modal-box-sm">
       <div class="modal-header">
-        <h2>Nouvelle alerte</h2>
+        <h2 data-i18n="modal.alert.title">Nouvelle alerte</h2>
         <button class="modal-close" id="close-alert">&times;</button>
       </div>
       <div class="form-grid">
-        <label class="form-label">Nom
-          <input id="alert-name" type="text" class="form-input" placeholder="Ex : Budget mensuel" />
+        <label class="form-label"><span data-i18n="modal.alert.name">Nom</span>
+          <input id="alert-name" type="text" class="form-input" />
         </label>
-        <label class="form-label">Période
+        <label class="form-label"><span data-i18n="modal.alert.period">Période</span>
           <select id="alert-period" class="form-input">
-            <option value="week">Cette semaine</option>
-            <option value="month" selected>Ce mois</option>
+            <option value="week"  data-i18n-opt="modal.alert.week">Cette semaine</option>
+            <option value="month" data-i18n-opt="modal.alert.month" selected>Ce mois</option>
           </select>
         </label>
-        <label class="form-label">Projet <span class="form-hint">(vide = global)</span>
+        <label class="form-label">
+          <span data-i18n="modal.alert.project">Projet</span> <span class="form-hint" data-i18n="modal.alert.project_hint">(vide = global)</span>
           <select id="alert-project" class="form-input">
-            <option value="">Global (tous projets)</option>
+            <option value="" data-i18n-opt="modal.alert.global">Global (tous projets)</option>
           </select>
         </label>
-        <label class="form-label">Seuil ($)
+        <label class="form-label"><span data-i18n="modal.alert.threshold">Seuil ($)</span>
           <input id="alert-threshold" type="number" class="form-input" step="0.01" min="0" placeholder="50.00" />
         </label>
       </div>
       <div class="modal-actions">
-        <button class="btn-sm" id="cancel-alert">Annuler</button>
-        <button class="btn-sm primary" id="submit-alert">Créer</button>
+        <button class="btn-sm" id="cancel-alert" data-i18n="modal.alert.cancel">Annuler</button>
+        <button class="btn-sm primary" id="submit-alert" data-i18n="modal.alert.create">Créer</button>
       </div>
     </div>
   </div>
@@ -81,77 +99,85 @@
   <div id="model-warning-banner" class="model-warning-banner hidden">
     <span class="alert-banner-icon">ℹ</span>
     <span id="model-warning-text"></span>
-    <button class="btn-sm" id="model-warning-configure">Configurer les prix →</button>
+    <button class="btn-sm" id="model-warning-configure" data-i18n="banner.configure">Configurer les prix →</button>
   </div>
   <div id="alert-banner" class="alert-banner hidden">
     <span class="alert-banner-icon">⚠</span>
     <span id="alert-banner-text"></span>
-    <button class="btn-sm" id="alert-banner-goto" style="margin-left:auto">Voir les alertes →</button>
+    <button class="btn-sm" id="alert-banner-goto" style="margin-left:auto" data-i18n="banner.goto">Voir les alertes →</button>
   </div>
 
   <!-- Navigation -->
   <nav class="tab-nav">
-    <button class="tab-btn active" data-tab="overview">Vue d'ensemble</button>
-    <button class="tab-btn" data-tab="sessions">Sessions</button>
-    <button class="tab-btn" data-tab="plans">Plans</button>
-    <button class="tab-btn" data-tab="alertes">Alertes <span id="alert-tab-badge" class="badge-count hidden">0</span></button>
+    <button class="tab-btn active" data-tab="overview" data-i18n="tab.overview">Vue d'ensemble</button>
+    <button class="tab-btn" data-tab="sessions" data-i18n="tab.sessions">Sessions</button>
+    <button class="tab-btn" data-tab="plans" data-i18n="tab.plans">Plans</button>
+    <button class="tab-btn" data-tab="alertes">
+      <span data-i18n="tab.alerts">Alertes</span>
+      <span id="alert-tab-badge" class="badge-count hidden">0</span>
+    </button>
   </nav>
 
   <!-- Onglet 1 : Vue d'ensemble -->
   <div class="tab-section active" id="tab-overview">
     <section class="kpis">
       <div class="kpi">
-        <span class="label">Coût total</span>
+        <span class="label" data-i18n="kpi.cost">Coût total</span>
         <span id="kpi-cost" class="value">—</span>
         <span id="kpi-cost-trend" class="kpi-trend"></span>
       </div>
       <div class="kpi">
-        <span class="label">Appels API</span>
+        <span class="label" data-i18n="kpi.calls">Appels API</span>
         <span id="kpi-calls" class="value">—</span>
         <span id="kpi-calls-trend" class="kpi-trend"></span>
       </div>
       <div class="kpi">
-        <span class="label">Sessions</span>
+        <span class="label" data-i18n="kpi.sessions">Sessions</span>
         <span id="kpi-sessions" class="value">—</span>
         <span id="kpi-sessions-trend" class="kpi-trend"></span>
       </div>
       <div class="kpi">
-        <span class="label">Tokens (entrée + sortie)</span>
+        <span class="label" data-i18n="kpi.tokens">Tokens (entrée + sortie)</span>
         <span id="kpi-tokens" class="value">—</span>
         <span id="kpi-tokens-trend" class="kpi-trend"></span>
       </div>
     </section>
 
     <section class="cache-bar">
-      <div class="cache-kpi"><span class="label">Cache hit rate</span><span id="ck-hitrate" class="value accent">—</span></div>
-      <div class="cache-kpi"><span class="label">Tokens lus depuis cache</span><span id="ck-read" class="value">—</span></div>
-      <div class="cache-kpi"><span class="label">Économies brutes</span><span id="ck-savings" class="value good">—</span></div>
-      <div class="cache-kpi"><span class="label">Surcoût écriture</span><span id="ck-write-cost" class="value warn">—</span></div>
-      <div class="cache-kpi"><span class="label">Gain net cache</span><span id="ck-net" class="value">—</span></div>
+      <div class="cache-kpi"><span class="label" data-i18n="cache.hitrate">Cache hit rate</span><span id="ck-hitrate" class="value accent">—</span></div>
+      <div class="cache-kpi"><span class="label" data-i18n="cache.read">Tokens lus depuis cache</span><span id="ck-read" class="value">—</span></div>
+      <div class="cache-kpi"><span class="label" data-i18n="cache.savings">Économies brutes</span><span id="ck-savings" class="value good">—</span></div>
+      <div class="cache-kpi"><span class="label" data-i18n="cache.write">Surcoût écriture</span><span id="ck-write-cost" class="value warn">—</span></div>
+      <div class="cache-kpi"><span class="label" data-i18n="cache.net">Gain net cache</span><span id="ck-net" class="value">—</span></div>
     </section>
 
     <section class="grid">
       <div class="card wide">
-        <h2 id="chart-time-title">Coût par jour</h2>
+        <h2 id="chart-time-title" data-i18n="chart.day">Coût par jour</h2>
         <canvas id="chart-day"></canvas>
       </div>
       <div class="card">
-        <h2>Répartition par modèle</h2>
+        <h2 data-i18n="chart.model">Répartition par modèle</h2>
         <canvas id="chart-model"></canvas>
       </div>
       <div class="card">
-        <h2>Top projets</h2>
+        <h2 data-i18n="chart.projects">Top projets</h2>
         <table id="tbl-projects">
-          <thead><tr><th>Projet</th><th class="right">Coût</th><th class="right">Sessions</th><th class="right">Appels</th></tr></thead>
+          <thead><tr>
+            <th data-i18n="sessions.col.project">Projet</th>
+            <th class="right" data-i18n="sessions.col.cost">Coût</th>
+            <th class="right" data-i18n="tab.sessions">Sessions</th>
+            <th class="right" data-i18n="kpi.calls">Appels</th>
+          </tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="card">
-        <h2>Coût par jour de semaine</h2>
+        <h2 data-i18n="chart.weekday">Coût par jour de semaine</h2>
         <canvas id="chart-weekday"></canvas>
       </div>
       <div class="card">
-        <h2>Coût par heure de la journée</h2>
+        <h2 data-i18n="chart.hourofday">Coût par heure de la journée</h2>
         <canvas id="chart-hourofday"></canvas>
       </div>
     </section>
@@ -162,9 +188,9 @@
     <section class="grid">
       <div class="card wide">
         <div class="card-header">
-          <h2>Sessions</h2>
+          <h2 data-i18n="tab.sessions">Sessions</h2>
           <div class="sessions-controls">
-            <label class="ctrl-label">Limite
+            <label class="ctrl-label"><span data-i18n="sessions.limit">Limite</span>
               <select id="sessions-limit" class="form-input ctrl-select">
                 <option value="20">20</option>
                 <option value="50" selected>50</option>
@@ -172,23 +198,26 @@
                 <option value="500">500</option>
               </select>
             </label>
-            <label class="ctrl-label">Projet
+            <label class="ctrl-label"><span data-i18n="sessions.project">Projet</span>
               <select id="sessions-project" class="form-input ctrl-select" style="max-width:180px">
-                <option value="">Tous</option>
+                <option value="" data-i18n-opt="sessions.all">Tous</option>
               </select>
             </label>
-            <a href="/api/export.csv" target="_blank" class="btn-sm">↓ Export CSV</a>
+            <a href="/api/export.csv" target="_blank" class="btn-sm" data-i18n="sessions.export">↓ Export CSV</a>
           </div>
         </div>
         <div class="table-scroll">
           <table id="tbl-sessions">
-            <thead>
-              <tr>
-                <th>Session</th><th>Projet</th><th>Début</th><th>Fin</th>
-                <th class="right">Coût</th><th class="right">Appels</th>
-                <th class="right">Cache hit</th><th class="right">Ctx max</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th data-i18n="sessions.col.session">Session</th>
+              <th data-i18n="sessions.col.project">Projet</th>
+              <th data-i18n="sessions.col.start">Début</th>
+              <th data-i18n="sessions.col.end">Fin</th>
+              <th class="right" data-i18n="sessions.col.cost">Coût</th>
+              <th class="right" data-i18n="sessions.col.calls">Appels</th>
+              <th class="right" data-i18n="sessions.col.cache">Cache hit</th>
+              <th class="right" data-i18n="sessions.col.ctx">Ctx max</th>
+            </tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -201,29 +230,29 @@
     <section class="grid">
       <div class="card wide" id="card-plans">
         <div class="card-header">
-          <h2>Comparaison de plans</h2>
+          <h2 data-i18n="plans.title">Comparaison de plans</h2>
           <label style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;">
-            Période
+            <span data-i18n="plans.period">Période</span>
             <select id="plans-months" class="form-input" style="padding:4px 8px;font-size:12px;">
-              <option value="3">3 mois</option>
-              <option value="6">6 mois</option>
-              <option value="12" selected>12 mois</option>
+              <option value="3">3 <span data-i18n="plans.months_label">mois</span></option>
+              <option value="6">6 <span data-i18n="plans.months_label">mois</span></option>
+              <option value="12" selected>12 <span data-i18n="plans.months_label">mois</span></option>
             </select>
           </label>
         </div>
         <div class="plans-layout">
-          <div class="plans-chart-wrap">
-            <canvas id="chart-plans"></canvas>
-          </div>
+          <div class="plans-chart-wrap"><canvas id="chart-plans"></canvas></div>
           <div class="plans-table-wrap">
             <table id="tbl-plans">
-              <thead>
-                <tr>
-                  <th>Plan</th><th class="right">Prix/mois</th><th class="right">Coût sur période</th>
-                  <th class="right">Votre API</th><th class="right">Δ économie</th>
-                  <th class="right">Mois rentables</th><th class="right">Régularité</th>
-                </tr>
-              </thead>
+              <thead><tr>
+                <th data-i18n="plans.col.plan">Plan</th>
+                <th class="right" data-i18n="plans.col.price">Prix/mois</th>
+                <th class="right" data-i18n="plans.col.total">Coût sur période</th>
+                <th class="right" data-i18n="plans.col.api">Votre API</th>
+                <th class="right" data-i18n="plans.col.delta">Δ économie</th>
+                <th class="right" data-i18n="plans.col.months">Mois rentables</th>
+                <th class="right" data-i18n="plans.col.regularity">Régularité</th>
+              </tr></thead>
               <tbody id="tbl-plans-body"></tbody>
             </table>
             <p class="modal-note" id="plans-note"></p>
@@ -238,18 +267,20 @@
     <section class="grid">
       <div class="card wide" id="card-alerts">
         <div class="card-header">
-          <h2>Alertes budget</h2>
-          <button class="btn-sm primary" id="btn-add-alert">+ Nouvelle alerte</button>
+          <h2 data-i18n="alerts.title">Alertes budget</h2>
+          <button class="btn-sm primary" id="btn-add-alert" data-i18n="alerts.add">+ Nouvelle alerte</button>
         </div>
-        <div id="alerts-empty" class="alerts-empty hidden">Aucune alerte configurée.</div>
+        <div id="alerts-empty" class="alerts-empty hidden" data-i18n="alerts.empty">Aucune alerte configurée.</div>
         <table id="tbl-alerts" class="hidden">
-          <thead>
-            <tr>
-              <th>Nom</th><th>Période</th><th>Projet</th>
-              <th class="right">Seuil</th><th class="right">Actuel</th>
-              <th class="right">Statut</th><th></th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th data-i18n="alerts.col.name">Nom</th>
+            <th data-i18n="alerts.col.period">Période</th>
+            <th data-i18n="alerts.col.project">Projet</th>
+            <th class="right" data-i18n="alerts.col.threshold">Seuil</th>
+            <th class="right" data-i18n="alerts.col.current">Actuel</th>
+            <th class="right" data-i18n="alerts.col.status">Statut</th>
+            <th></th>
+          </tr></thead>
           <tbody id="tbl-alerts-body"></tbody>
         </table>
       </div>
