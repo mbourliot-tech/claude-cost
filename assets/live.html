@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>claude-cost — Temps réel</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+  <style>
+    .live-header { display:flex; align-items:center; justify-content:space-between; padding:18px 24px; border-bottom:1px solid var(--border); background:var(--surface); }
+    .live-header h1 { margin:0; font-size:18px; color:var(--accent); letter-spacing:0.5px; }
+    .live-header .right { display:flex; align-items:center; gap:16px; }
+    .live-badge { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--good); font-weight:600; letter-spacing:0.5px; }
+    .live-dot { width:8px; height:8px; border-radius:50%; background:var(--good); animation:pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+    .live-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:16px 24px; }
+    .live-table-wrap { padding:0 24px 24px; }
+    .live-table-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+    .live-table-card .card-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); }
+    .live-table-card .card-header h2 { margin:0; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
+    .live-table-card .card-header small { color:var(--muted); font-size:11px; }
+    #tbl-live { width:100%; border-collapse:collapse; }
+    #tbl-live th,#tbl-live td { padding:8px 12px; border-bottom:1px solid var(--border); text-align:left; }
+    #tbl-live th { font-weight:500; color:var(--muted); font-size:12px; background:var(--surface); position:sticky; top:0; z-index:1; }
+    #tbl-live tr:hover td { background:var(--surface-2); }
+    #tbl-live .right { text-align:right; font-variant-numeric:tabular-nums; }
+    #tbl-live .mono { font-family:monospace; font-size:11px; }
+    .model-badge { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+    .tier-badge { display:inline-block; padding:1px 5px; border-radius:3px; font-size:10px; background:rgba(107,209,255,0.12); color:var(--accent-2); border:1px solid rgba(107,209,255,0.25); }
+    .row-new { animation:flash 1.2s ease-out forwards; }
+    @keyframes flash { 0%{background:rgba(94,224,138,0.18)} 100%{background:transparent} }
+    .back-link { color:var(--muted); text-decoration:none; font-size:13px; }
+    .back-link:hover { color:var(--text); }
+    .last-update { color:var(--muted); font-size:12px; }
+    @media(max-width:900px){ .live-stats{grid-template-columns:repeat(2,1fr)} }
+  </style>
+</head>
+<body>
+  <header class="live-header">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <a href="/" class="back-link">← Dashboard</a>
+      <h1>Flux temps réel</h1>
+    </div>
+    <div class="right">
+      <span class="last-update" id="last-update">—</span>
+      <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+    </div>
+  </header>
+
+  <section class="live-stats">
+    <div class="kpi"><span class="label">Appels aujourd'hui</span><span id="sk-calls" class="value">—</span></div>
+    <div class="kpi"><span class="label">Coût aujourd'hui</span><span id="sk-cost" class="value">—</span></div>
+    <div class="kpi"><span class="label">Dernier modèle</span><span id="sk-model" class="value" style="font-size:14px;word-break:break-all">—</span></div>
+    <div class="kpi"><span class="label">Dernier appel</span><span id="sk-last-ts" class="value" style="font-size:14px">—</span></div>
+  </section>
+
+  <div class="live-table-wrap">
+    <div class="live-table-card">
+      <div class="card-header">
+        <h2>Appels récents</h2>
+        <small id="row-count">—</small>
+      </div>
+      <div style="overflow-x:auto;max-height:65vh;overflow-y:auto;">
+        <table id="tbl-live">
+          <thead>
+            <tr>
+              <th>Horodatage</th>
+              <th>Modèle</th>
+              <th>Projet</th>
+              <th class="right">Coût</th>
+              <th class="right">Input</th>
+              <th class="right">Output</th>
+              <th class="right">Cache read</th>
+              <th class="right">Cache hit</th>
+              <th>Tier / Vitesse</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-live-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/live.js"></script>
+</body>
+</html>

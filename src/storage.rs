@@ -1,0 +1,467 @@
+use crate::pricing::ModelPrice;
+use crate::types::UsageRecord;
+use anyhow::Result;
+use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Mutex;
+
+pub struct Store {
+    conn: Mutex<Connection>,
+}
+
+impl Store {
+    pub fn open(path: &Path) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let conn = Connection::open(path)?;
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS model_prices (
+                model               TEXT PRIMARY KEY,
+                input_per_mtok      REAL NOT NULL,
+                output_per_mtok     REAL NOT NULL,
+                cache_read_per_mtok REAL
+            );
+            CREATE TABLE IF NOT EXISTS usage (
+                message_id        TEXT PRIMARY KEY,
+                session_id        TEXT NOT NULL,
+                project_path      TEXT NOT NULL,
+                ts                TEXT NOT NULL,
+                model             TEXT NOT NULL,
+                input_tokens      INTEGER NOT NULL,
+                output_tokens     INTEGER NOT NULL,
+                cache_read_tokens INTEGER NOT NULL,
+                cache_5m_tokens   INTEGER NOT NULL,
+                cache_1h_tokens   INTEGER NOT NULL,
+                cost_usd          REAL NOT NULL,
+                service_tier      TEXT,
+                speed             TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_usage_ts      ON usage(ts);
+            CREATE INDEX IF NOT EXISTS idx_usage_model   ON usage(model);
+            CREATE INDEX IF NOT EXISTS idx_usage_project ON usage(project_path);
+            CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
+            "#,
+        )?;
+        Ok(Self { conn: Mutex::new(conn) })
+    }
+
+    /// Insert a batch. Each row is identified by `message_id`. On conflict the
+    /// `cost_usd` is refreshed only when it actually changes — this lets the
+    /// scanner re-price old rows after `pricing.rs` is updated (e.g. when a new
+    /// model is added or a tier is adjusted) without losing idempotence: a
+    /// rescan with unchanged prices touches zero rows.
+    ///
+    /// Returns the number of rows inserted OR repriced.
+    pub fn insert_batch(&self, records: &[UsageRecord]) -> Result<usize> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let mut touched_rows = 0usize;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO usage \
+                 (message_id, session_id, project_path, ts, model, \
+                  input_tokens, output_tokens, cache_read_tokens, cache_5m_tokens, cache_1h_tokens, \
+                  cost_usd, service_tier, speed) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) \
+                 ON CONFLICT(message_id) DO UPDATE SET cost_usd = excluded.cost_usd \
+                 WHERE usage.cost_usd IS NOT excluded.cost_usd",
+            )?;
+            for r in records {
+                let inserted = stmt.execute(params![
+                    r.message_id,
+                    r.session_id,
+                    r.project_path,
+                    r.timestamp,
+                    r.model,
+                    r.input_tokens as i64,
+                    r.output_tokens as i64,
+                    r.cache_read_tokens as i64,
+                    r.cache_5m_tokens as i64,
+                    r.cache_1h_tokens as i64,
+                    r.cost_usd,
+                    r.service_tier,
+                    r.speed,
+                ])?;
+                touched_rows += inserted;
+            }
+        }
+        tx.commit()?;
+        Ok(touched_rows)
+    }
+
+    pub fn list_price_overrides(&self) -> Result<Vec<ModelPriceOverride>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT model, input_per_mtok, output_per_mtok, cache_read_per_mtok FROM model_prices ORDER BY model",
+        )?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(ModelPriceOverride {
+                    model: r.get(0)?,
+                    input_per_mtok: r.get(1)?,
+                    output_per_mtok: r.get(2)?,
+                    cache_read_per_mtok: r.get(3)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub fn price_overrides_map(&self) -> Result<HashMap<String, ModelPrice>> {
+        let overrides = self.list_price_overrides()?;
+        Ok(overrides
+            .into_iter()
+            .map(|o| {
+                (o.model, ModelPrice { input_per_mtok: o.input_per_mtok, output_per_mtok: o.output_per_mtok, cache_read_per_mtok: o.cache_read_per_mtok })
+            })
+            .collect())
+    }
+
+    pub fn upsert_model_price(&self, model: &str, input: f64, output: f64, cache_read: Option<f64>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO model_prices (model, input_per_mtok, output_per_mtok, cache_read_per_mtok) \
+             VALUES (?1, ?2, ?3, ?4) \
+             ON CONFLICT(model) DO UPDATE SET \
+               input_per_mtok = excluded.input_per_mtok, \
+               output_per_mtok = excluded.output_per_mtok, \
+               cache_read_per_mtok = excluded.cache_read_per_mtok",
+            params![model, input, output, cache_read],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_model_price(&self, model: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM model_prices WHERE model = ?1", params![model])?;
+        Ok(())
+    }
+
+    pub fn distinct_models(&self) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT DISTINCT model FROM usage ORDER BY model")?;
+        let rows = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        Ok(rows)
+    }
+
+    pub fn summary(&self, since: Option<&str>, until: Option<&str>) -> Result<Summary> {
+        let conn = self.conn.lock().unwrap();
+        let (clause, p1, p2) = range_clause(since, until);
+        let sql = format!(
+            "SELECT COALESCE(SUM(cost_usd),0), \
+                    COALESCE(SUM(input_tokens),0), \
+                    COALESCE(SUM(output_tokens),0), \
+                    COALESCE(SUM(cache_read_tokens),0), \
+                    COALESCE(SUM(cache_5m_tokens),0), \
+                    COALESCE(SUM(cache_1h_tokens),0), \
+                    COUNT(*), \
+                    COUNT(DISTINCT session_id) \
+             FROM usage{clause}"
+        );
+        let row: Summary = conn.query_row(&sql, rusqlite::params_from_iter(opt_params(&p1, &p2)), |r| {
+            Ok(Summary {
+                total_cost_usd: r.get(0)?,
+                input_tokens: r.get::<_, i64>(1)? as u64,
+                output_tokens: r.get::<_, i64>(2)? as u64,
+                cache_read_tokens: r.get::<_, i64>(3)? as u64,
+                cache_5m_tokens: r.get::<_, i64>(4)? as u64,
+                cache_1h_tokens: r.get::<_, i64>(5)? as u64,
+                calls: r.get::<_, i64>(6)? as u64,
+                sessions: r.get::<_, i64>(7)? as u64,
+            })
+        })?;
+        Ok(row)
+    }
+
+    pub fn by_model(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByModel>> {
+        let conn = self.conn.lock().unwrap();
+        let (clause, p1, p2) = range_clause(since, until);
+        let sql = format!(
+            "SELECT model, \
+                    SUM(cost_usd), \
+                    SUM(input_tokens), SUM(output_tokens), \
+                    SUM(cache_read_tokens), SUM(cache_5m_tokens), SUM(cache_1h_tokens), \
+                    COUNT(*) \
+             FROM usage{clause} GROUP BY model ORDER BY SUM(cost_usd) DESC"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(opt_params(&p1, &p2)), |r| {
+                Ok(ByModel {
+                    model: r.get(0)?,
+                    cost_usd: r.get(1)?,
+                    input_tokens: r.get::<_, i64>(2)? as u64,
+                    output_tokens: r.get::<_, i64>(3)? as u64,
+                    cache_read_tokens: r.get::<_, i64>(4)? as u64,
+                    cache_5m_tokens: r.get::<_, i64>(5)? as u64,
+                    cache_1h_tokens: r.get::<_, i64>(6)? as u64,
+                    calls: r.get::<_, i64>(7)? as u64,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    /// Group costs by calendar day (UTC since timestamps are ISO Z). `days` = window length.
+    pub fn by_day(&self, days: i64) -> Result<Vec<ByDay>> {
+        let conn = self.conn.lock().unwrap();
+        let sql = "\
+            SELECT substr(ts, 1, 10) AS day, SUM(cost_usd), SUM(input_tokens + output_tokens + cache_read_tokens + cache_5m_tokens + cache_1h_tokens) \
+            FROM usage \
+            WHERE ts >= date('now', ?1) \
+            GROUP BY day ORDER BY day ASC";
+        let offset = format!("-{} days", days.max(1));
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt
+            .query_map(params![offset], |r| {
+                Ok(ByDay {
+                    date: r.get(0)?,
+                    cost_usd: r.get(1)?,
+                    tokens: r.get::<_, i64>(2)? as u64,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub fn by_project(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByProject>> {
+        let conn = self.conn.lock().unwrap();
+        let (clause, p1, p2) = range_clause(since, until);
+        let sql = format!(
+            "SELECT project_path, SUM(cost_usd), COUNT(DISTINCT session_id), COUNT(*) \
+             FROM usage{clause} GROUP BY project_path ORDER BY SUM(cost_usd) DESC"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(opt_params(&p1, &p2)), |r| {
+                Ok(ByProject {
+                    project_path: r.get(0)?,
+                    cost_usd: r.get(1)?,
+                    sessions: r.get::<_, i64>(2)? as u64,
+                    calls: r.get::<_, i64>(3)? as u64,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub fn by_session(&self, project: Option<&str>, limit: i64) -> Result<Vec<BySession>> {
+        let conn = self.conn.lock().unwrap();
+        let mut sql = String::from(
+            "SELECT session_id, project_path, MIN(ts), MAX(ts), SUM(cost_usd), COUNT(*), \
+             SUM(cache_read_tokens), SUM(input_tokens) FROM usage",
+        );
+        let mut params_owned: Vec<String> = Vec::new();
+        if let Some(p) = project {
+            sql.push_str(" WHERE project_path = ?1");
+            params_owned.push(p.to_string());
+        }
+        sql.push_str(" GROUP BY session_id ORDER BY MAX(ts) DESC LIMIT ?");
+        sql.push_str(&format!("{}", params_owned.len() + 1));
+        params_owned.push(limit.to_string());
+        let mut stmt = conn.prepare(&sql)?;
+        let p_refs: Vec<&dyn rusqlite::ToSql> = params_owned.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        let rows = stmt
+            .query_map(p_refs.as_slice(), |r| {
+                Ok(BySession {
+                    session_id: r.get(0)?,
+                    project_path: r.get(1)?,
+                    started_at: r.get(2)?,
+                    ended_at: r.get(3)?,
+                    cost_usd: r.get(4)?,
+                    calls: r.get::<_, i64>(5)? as u64,
+                    cache_read_tokens: r.get::<_, i64>(6)? as u64,
+                    input_tokens: r.get::<_, i64>(7)? as u64,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub fn by_hour(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByHour>> {
+        let conn = self.conn.lock().unwrap();
+        let (clause, p1, p2) = range_clause(since, until);
+        let sql = format!(
+            "SELECT substr(ts, 1, 13) AS h, SUM(cost_usd), \
+                    SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens) \
+             FROM usage{clause} GROUP BY h ORDER BY h"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(opt_params(&p1, &p2)), |r| {
+                Ok(ByHour {
+                    hour: r.get::<_, String>(0)? + ":00:00Z",
+                    cost_usd: r.get(1)?,
+                    input_tokens: r.get::<_, i64>(2)? as u64,
+                    output_tokens: r.get::<_, i64>(3)? as u64,
+                    cache_read_tokens: r.get::<_, i64>(4)? as u64,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub fn recent_calls(&self, since: Option<&str>, limit: i64) -> Result<Vec<RecentCall>> {
+        let conn = self.conn.lock().unwrap();
+        let (where_clause, p_since) = match since {
+            Some(s) => (" WHERE ts > ?1", Some(s.to_string())),
+            None => ("", None),
+        };
+        let sql = format!(
+            "SELECT message_id, session_id, project_path, ts, model, \
+                    input_tokens, output_tokens, cache_read_tokens, \
+                    cache_5m_tokens, cache_1h_tokens, cost_usd, service_tier, speed \
+             FROM usage{where_clause} ORDER BY ts DESC, message_id DESC LIMIT ?{}",
+            if p_since.is_some() { 2 } else { 1 }
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = if let Some(s) = p_since {
+            stmt.query_map(rusqlite::params![s, limit], row_to_recent_call)?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        } else {
+            stmt.query_map(rusqlite::params![limit], row_to_recent_call)?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        Ok(rows)
+    }
+
+    pub fn last_timestamp(&self) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        let ts: Option<String> = conn
+            .query_row("SELECT MAX(ts) FROM usage", [], |r| r.get(0))
+            .optional()?
+            .flatten();
+        Ok(ts)
+    }
+}
+
+fn row_to_recent_call(r: &rusqlite::Row) -> rusqlite::Result<RecentCall> {
+    Ok(RecentCall {
+        message_id: r.get(0)?,
+        session_id: r.get(1)?,
+        project_path: r.get(2)?,
+        ts: r.get(3)?,
+        model: r.get(4)?,
+        input_tokens: r.get::<_, i64>(5)? as u64,
+        output_tokens: r.get::<_, i64>(6)? as u64,
+        cache_read_tokens: r.get::<_, i64>(7)? as u64,
+        cache_5m_tokens: r.get::<_, i64>(8)? as u64,
+        cache_1h_tokens: r.get::<_, i64>(9)? as u64,
+        cost_usd: r.get(10)?,
+        service_tier: r.get(11)?,
+        speed: r.get(12)?,
+    })
+}
+
+fn range_clause(since: Option<&str>, until: Option<&str>) -> (String, Option<String>, Option<String>) {
+    match (since, until) {
+        (Some(a), Some(b)) => (" WHERE ts >= ?1 AND ts <= ?2".into(), Some(a.into()), Some(b.into())),
+        (Some(a), None) => (" WHERE ts >= ?1".into(), Some(a.into()), None),
+        (None, Some(b)) => (" WHERE ts <= ?1".into(), Some(b.into()), None),
+        (None, None) => (String::new(), None, None),
+    }
+}
+
+fn opt_params<'a>(p1: &'a Option<String>, p2: &'a Option<String>) -> Vec<&'a dyn rusqlite::ToSql> {
+    let mut v: Vec<&dyn rusqlite::ToSql> = Vec::new();
+    if let Some(s) = p1 {
+        v.push(s as &dyn rusqlite::ToSql);
+    }
+    if let Some(s) = p2 {
+        v.push(s as &dyn rusqlite::ToSql);
+    }
+    v
+}
+
+#[derive(Debug, Serialize)]
+pub struct Summary {
+    pub total_cost_usd: f64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_5m_tokens: u64,
+    pub cache_1h_tokens: u64,
+    pub calls: u64,
+    pub sessions: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ByModel {
+    pub model: String,
+    pub cost_usd: f64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_5m_tokens: u64,
+    pub cache_1h_tokens: u64,
+    pub calls: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ByDay {
+    pub date: String,
+    pub cost_usd: f64,
+    pub tokens: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ByHour {
+    pub hour: String,
+    pub cost_usd: f64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ByProject {
+    pub project_path: String,
+    pub cost_usd: f64,
+    pub sessions: u64,
+    pub calls: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecentCall {
+    pub message_id: String,
+    pub session_id: String,
+    pub project_path: String,
+    pub ts: String,
+    pub model: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_5m_tokens: u64,
+    pub cache_1h_tokens: u64,
+    pub cost_usd: f64,
+    pub service_tier: Option<String>,
+    pub speed: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ModelPriceOverride {
+    pub model: String,
+    pub input_per_mtok: f64,
+    pub output_per_mtok: f64,
+    pub cache_read_per_mtok: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BySession {
+    pub session_id: String,
+    pub project_path: String,
+    pub started_at: String,
+    pub ended_at: String,
+    pub cost_usd: f64,
+    pub calls: u64,
+    pub cache_read_tokens: u64,
+    pub input_tokens: u64,
+}

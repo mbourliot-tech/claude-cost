@@ -1,0 +1,7 @@
+{"type":"assistant","uuid":"u1","timestamp":"2026-05-10T10:00:00Z","sessionId":"sess-aaa","cwd":"C:\\proj-a","message":{"id":"msg_a1","model":"claude-sonnet-4-6","role":"assistant","usage":{"input_tokens":1000,"output_tokens":2000,"cache_creation_input_tokens":15000,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":10000,"ephemeral_1h_input_tokens":5000}}}}
+{"type":"user","timestamp":"2026-05-10T10:01:00Z","sessionId":"sess-aaa","cwd":"C:\\proj-a","message":{"role":"user","content":"bonjour"}}
+{"type":"attachment","subtype":"skill_listing","timestamp":"2026-05-10T10:01:30Z"}
+{"type":"assistant","uuid":"u2","timestamp":"2026-05-10T10:02:00Z","sessionId":"sess-aaa","cwd":"C:\\proj-a","message":{"id":"msg_a2","model":"claude-opus-4-7","role":"assistant","usage":{"input_tokens":500,"output_tokens":1500,"cache_read_input_tokens":20000}}}
+{"type":"assistant","uuid":"u2b","timestamp":"2026-05-10T10:03:00Z","sessionId":"sess-aaa","cwd":"C:\\proj-a","message":{"id":"msg_a2","model":"claude-opus-4-7","role":"assistant","usage":{"input_tokens":500,"output_tokens":1500,"cache_read_input_tokens":20000}}}
+this is not valid json at all, scanner must keep going
+{"type":"assistant","uuid":"u3","timestamp":"2026-05-10T10:06:00Z","sessionId":"sess-aaa","cwd":"C:\\proj-a","message":{"id":"msg_a3","model":"claude-sonnet-4-6","role":"assistant","usage":{"input_tokens":2000,"output_tokens":3000}}}
