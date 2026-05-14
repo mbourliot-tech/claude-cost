@@ -28,6 +28,7 @@
     </div>
   </header>
 
+  <!-- Modals -->
   <div id="modal-prices" class="modal hidden">
     <div class="modal-box">
       <div class="modal-header">
@@ -48,17 +49,6 @@
       </table>
       <p class="modal-note">Cache read vide = multiplicateur Anthropic ×0.1 sur l'input.</p>
     </div>
-  </div>
-
-  <div id="model-warning-banner" class="model-warning-banner hidden">
-    <span class="alert-banner-icon">ℹ</span>
-    <span id="model-warning-text"></span>
-    <button class="btn-sm" id="model-warning-configure">Configurer les prix →</button>
-  </div>
-
-  <div id="alert-banner" class="alert-banner hidden">
-    <span class="alert-banner-icon">⚠</span>
-    <span id="alert-banner-text"></span>
   </div>
 
   <div id="modal-alert" class="modal hidden">
@@ -93,106 +83,145 @@
     </div>
   </div>
 
-  <section class="kpis">
-    <div class="kpi"><span class="label">Coût total</span><span id="kpi-cost" class="value">—</span></div>
-    <div class="kpi"><span class="label">Appels API</span><span id="kpi-calls" class="value">—</span></div>
-    <div class="kpi"><span class="label">Sessions</span><span id="kpi-sessions" class="value">—</span></div>
-    <div class="kpi"><span class="label">Tokens (entrée + sortie)</span><span id="kpi-tokens" class="value">—</span></div>
-  </section>
+  <!-- Banners (toujours visibles) -->
+  <div id="model-warning-banner" class="model-warning-banner hidden">
+    <span class="alert-banner-icon">ℹ</span>
+    <span id="model-warning-text"></span>
+    <button class="btn-sm" id="model-warning-configure">Configurer les prix →</button>
+  </div>
+  <div id="alert-banner" class="alert-banner hidden">
+    <span class="alert-banner-icon">⚠</span>
+    <span id="alert-banner-text"></span>
+    <button class="btn-sm" id="alert-banner-goto" style="margin-left:auto">Voir les alertes →</button>
+  </div>
 
-  <section class="cache-bar">
-    <div class="cache-kpi"><span class="label">Cache hit rate</span><span id="ck-hitrate" class="value accent">—</span></div>
-    <div class="cache-kpi"><span class="label">Tokens lus depuis cache</span><span id="ck-read" class="value">—</span></div>
-    <div class="cache-kpi"><span class="label">Économies brutes</span><span id="ck-savings" class="value good">—</span></div>
-    <div class="cache-kpi"><span class="label">Surcoût écriture</span><span id="ck-write-cost" class="value warn">—</span></div>
-    <div class="cache-kpi"><span class="label">Gain net cache</span><span id="ck-net" class="value">—</span></div>
-  </section>
+  <!-- Navigation par onglets -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="overview">Vue d'ensemble</button>
+    <button class="tab-btn" data-tab="sessions">Sessions</button>
+    <button class="tab-btn" data-tab="plans">Plans</button>
+    <button class="tab-btn" data-tab="alertes">
+      Alertes
+      <span id="alert-tab-badge" class="badge-count hidden">0</span>
+    </button>
+  </nav>
 
-  <section class="grid">
-    <div class="card wide">
-      <h2 id="chart-time-title">Coût par jour</h2>
-      <canvas id="chart-day"></canvas>
-    </div>
+  <!-- Onglet 1 : Vue d'ensemble -->
+  <div class="tab-section active" id="tab-overview">
+    <section class="kpis">
+      <div class="kpi"><span class="label">Coût total</span><span id="kpi-cost" class="value">—</span></div>
+      <div class="kpi"><span class="label">Appels API</span><span id="kpi-calls" class="value">—</span></div>
+      <div class="kpi"><span class="label">Sessions</span><span id="kpi-sessions" class="value">—</span></div>
+      <div class="kpi"><span class="label">Tokens (entrée + sortie)</span><span id="kpi-tokens" class="value">—</span></div>
+    </section>
 
-    <div class="card">
-      <h2>Répartition par modèle</h2>
-      <canvas id="chart-model"></canvas>
-    </div>
+    <section class="cache-bar">
+      <div class="cache-kpi"><span class="label">Cache hit rate</span><span id="ck-hitrate" class="value accent">—</span></div>
+      <div class="cache-kpi"><span class="label">Tokens lus depuis cache</span><span id="ck-read" class="value">—</span></div>
+      <div class="cache-kpi"><span class="label">Économies brutes</span><span id="ck-savings" class="value good">—</span></div>
+      <div class="cache-kpi"><span class="label">Surcoût écriture</span><span id="ck-write-cost" class="value warn">—</span></div>
+      <div class="cache-kpi"><span class="label">Gain net cache</span><span id="ck-net" class="value">—</span></div>
+    </section>
 
-    <div class="card">
-      <h2>Top projets</h2>
-      <table id="tbl-projects">
-        <thead><tr><th>Projet</th><th class="right">Coût</th><th class="right">Sessions</th><th class="right">Appels</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div class="card wide" id="card-plans">
-      <div class="card-header">
-        <h2>Comparaison de plans</h2>
-        <label style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;">
-          Période
-          <select id="plans-months" class="form-input" style="padding:4px 8px;font-size:12px;">
-            <option value="3">3 mois</option>
-            <option value="6">6 mois</option>
-            <option value="12" selected>12 mois</option>
-          </select>
-        </label>
+    <section class="grid">
+      <div class="card wide">
+        <h2 id="chart-time-title">Coût par jour</h2>
+        <canvas id="chart-day"></canvas>
       </div>
-      <div class="plans-layout">
-        <div class="plans-chart-wrap">
-          <canvas id="chart-plans"></canvas>
+      <div class="card">
+        <h2>Répartition par modèle</h2>
+        <canvas id="chart-model"></canvas>
+      </div>
+      <div class="card">
+        <h2>Top projets</h2>
+        <table id="tbl-projects">
+          <thead><tr><th>Projet</th><th class="right">Coût</th><th class="right">Sessions</th><th class="right">Appels</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Onglet 2 : Sessions -->
+  <div class="tab-section" id="tab-sessions">
+    <section class="grid">
+      <div class="card wide">
+        <h2>Sessions récentes</h2>
+        <table id="tbl-sessions">
+          <thead><tr><th>Session</th><th>Projet</th><th>Début</th><th>Fin</th><th class="right">Coût</th><th class="right">Appels</th><th class="right">Cache hit</th><th class="right">Ctx max</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Onglet 3 : Plans -->
+  <div class="tab-section" id="tab-plans">
+    <section class="grid">
+      <div class="card wide" id="card-plans">
+        <div class="card-header">
+          <h2>Comparaison de plans</h2>
+          <label style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;">
+            Période
+            <select id="plans-months" class="form-input" style="padding:4px 8px;font-size:12px;">
+              <option value="3">3 mois</option>
+              <option value="6">6 mois</option>
+              <option value="12" selected>12 mois</option>
+            </select>
+          </label>
         </div>
-        <div class="plans-table-wrap">
-          <table id="tbl-plans">
-            <thead>
-              <tr>
-                <th>Plan</th>
-                <th class="right">Prix/mois</th>
-                <th class="right">Coût sur période</th>
-                <th class="right">Votre API</th>
-                <th class="right">Δ économie</th>
-                <th class="right">Mois rentables</th>
-                <th class="right">Régularité</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-plans-body"></tbody>
-          </table>
-          <p class="modal-note" id="plans-note"></p>
+        <div class="plans-layout">
+          <div class="plans-chart-wrap">
+            <canvas id="chart-plans"></canvas>
+          </div>
+          <div class="plans-table-wrap">
+            <table id="tbl-plans">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th class="right">Prix/mois</th>
+                  <th class="right">Coût sur période</th>
+                  <th class="right">Votre API</th>
+                  <th class="right">Δ économie</th>
+                  <th class="right">Mois rentables</th>
+                  <th class="right">Régularité</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-plans-body"></tbody>
+            </table>
+            <p class="modal-note" id="plans-note"></p>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
+  </div>
 
-    <div class="card wide" id="card-alerts">
-      <div class="card-header">
-        <h2>Alertes budget</h2>
-        <button class="btn-sm primary" id="btn-add-alert">+ Nouvelle alerte</button>
+  <!-- Onglet 4 : Alertes -->
+  <div class="tab-section" id="tab-alertes">
+    <section class="grid">
+      <div class="card wide" id="card-alerts">
+        <div class="card-header">
+          <h2>Alertes budget</h2>
+          <button class="btn-sm primary" id="btn-add-alert">+ Nouvelle alerte</button>
+        </div>
+        <div id="alerts-empty" class="alerts-empty hidden">Aucune alerte configurée.</div>
+        <table id="tbl-alerts" class="hidden">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Période</th>
+              <th>Projet</th>
+              <th class="right">Seuil</th>
+              <th class="right">Actuel</th>
+              <th class="right">Statut</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbl-alerts-body"></tbody>
+        </table>
       </div>
-      <div id="alerts-empty" class="alerts-empty hidden">Aucune alerte configurée.</div>
-      <table id="tbl-alerts" class="hidden">
-        <thead>
-          <tr>
-            <th>Nom</th>
-            <th>Période</th>
-            <th>Projet</th>
-            <th class="right">Seuil</th>
-            <th class="right">Actuel</th>
-            <th class="right">Statut</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="tbl-alerts-body"></tbody>
-      </table>
-    </div>
-
-    <div class="card wide">
-      <h2>Sessions récentes</h2>
-      <table id="tbl-sessions">
-        <thead><tr><th>Session</th><th>Projet</th><th>Début</th><th>Fin</th><th class="right">Coût</th><th class="right">Appels</th><th class="right">Cache hit</th><th class="right">Ctx max</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
+    </section>
+  </div>
 
   <footer>
     <span id="footer-meta">—</span>

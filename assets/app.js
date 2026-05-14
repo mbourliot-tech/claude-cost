@@ -267,6 +267,23 @@ refresh().catch((e) => {
   $("#footer-meta").textContent = "Erreur: " + e.message;
 });
 
+// ── Navigation par onglets ────────────────────────────────────────────────────
+
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tab-section").forEach((s) => s.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    // Chart.js se redimensionne incorrectement quand le canvas est caché à la création
+    [dayChart, modelChart, planChart].forEach((c) => c && c.resize());
+  });
+});
+
+$("#alert-banner-goto").addEventListener("click", () => {
+  document.querySelector(".tab-btn[data-tab='alertes']").click();
+});
+
 // ── Modal "Prix des modèles" ─────────────────────────────────────────────────
 
 let priceRows = [];
@@ -534,11 +551,15 @@ async function refreshAlerts() {
 function renderAlertBanner(alerts) {
   const triggered = alerts.filter((a) => a.is_triggered);
   const banner = $("#alert-banner");
+  const tabBadge = $("#alert-tab-badge");
   if (triggered.length === 0) {
     banner.classList.add("hidden");
     banner.classList.remove("critical");
+    tabBadge.classList.add("hidden");
     return;
   }
+  tabBadge.textContent = triggered.length;
+  tabBadge.classList.remove("hidden");
   banner.classList.remove("hidden");
   const msgs = triggered.map((a) => {
     const period = a.period === "week" ? "cette semaine" : "ce mois";

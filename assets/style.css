@@ -190,6 +190,34 @@ canvas { max-height: 280px; }
 .btn-sm.danger { border-color: var(--warn); color: var(--warn); }
 .btn-sm:disabled { opacity: 0.4; cursor: default; }
 
+/* Tab navigation */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  padding: 11px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-section { display: none; }
+.tab-section.active { display: block; }
+
 /* Plan comparison card */
 .plans-layout {
   display: grid;
