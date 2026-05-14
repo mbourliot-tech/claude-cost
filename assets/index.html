@@ -306,6 +306,27 @@
     <span id="footer-refresh" style="margin-left:auto;color:var(--muted);font-size:11px"></span>
   </footer>
 
+  <!-- Easter egg : Token Snake -->
+  <div id="game-overlay" class="game-overlay hidden">
+    <div class="game-box">
+      <div class="game-header">
+        <span class="game-title">🕹 TOKEN SNAKE</span>
+        <div class="game-stats">
+          <span>Score <b id="gs-score">0</b></span>
+          <span>Meilleur <b id="gs-hi">0</b></span>
+          <span>Niv. <b id="gs-level">1</b></span>
+        </div>
+        <button class="game-close" id="game-close">✕</button>
+      </div>
+      <div class="game-canvas-wrap">
+        <canvas id="game-canvas" width="400" height="400"></canvas>
+        <div id="game-msg"></div>
+      </div>
+      <div class="game-hint">↑ ↓ ← → · Espace = pause/rejouer · Echap = quitter</div>
+    </div>
+  </div>
+
   <script src="/assets/app.js"></script>
+  <script src="/assets/game.js"></script>
 </body>
 </html>
