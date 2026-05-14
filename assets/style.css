@@ -59,9 +59,31 @@ header {
 
 header h1 {
   margin: 0;
-  font-size: 18px;
-  letter-spacing: 0.5px;
-  color: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+}
+.title-claude {
+  background: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.title-dot {
+  color: var(--border);
+  font-weight: 300;
+  font-size: 20px;
+  margin: 0 1px;
+}
+.title-cost {
+  color: var(--text);
+  font-weight: 500;
+  font-size: 20px;
+  letter-spacing: 0;
 }
 
 .controls { display: flex; gap: 12px; align-items: center; }
