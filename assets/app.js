@@ -73,8 +73,11 @@ async function refresh() {
     isToday
       ? jget("/api/by-hour" + qs(params))
       : jget("/api/by-day?days=" + range.days),
+    jget("/api/model-prices"),
   ];
-  const [summary, byModel, byProject, bySession, cacheStats, timeData] = await Promise.all(fetches);
+  const [summary, byModel, byProject, bySession, cacheStats, timeData, modelPrices] = await Promise.all(fetches);
+  priceRows = modelPrices;
+  renderModelWarnings(modelPrices);
 
   refreshAlerts().catch(() => {});
 
@@ -332,6 +335,27 @@ async function resetPrice(btn) {
     btn.textContent = "Réinitialiser";
   }
 }
+
+// ── Avertissement modèles inconnus ───────────────────────────────────────────
+
+function renderModelWarnings(models) {
+  const unknowns = models.filter((m) => !m.is_known && !m.is_override);
+  const banner = $("#model-warning-banner");
+  const badge = $("#unknown-badge");
+  if (unknowns.length === 0) {
+    banner.classList.add("hidden");
+    badge.classList.add("hidden");
+    return;
+  }
+  badge.textContent = unknowns.length;
+  badge.classList.remove("hidden");
+  banner.classList.remove("hidden");
+  const names = unknowns.map((m) => escapeHtml(m.model)).join(", ");
+  $("#model-warning-text").textContent =
+    `${unknowns.length} modèle(s) sans prix configuré — appels comptabilisés à $0 : ${names}.`;
+}
+
+$("#model-warning-configure").addEventListener("click", openPricesModal);
 
 // ── Alertes budget ───────────────────────────────────────────────────────────
 

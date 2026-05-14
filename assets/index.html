@@ -23,7 +23,7 @@
       </label>
       <input type="date" id="date-picker" class="hidden" />
       <button id="rescan">Rescan</button>
-      <button id="open-prices">Prix des modèles</button>
+      <button id="open-prices">Prix des modèles <span id="unknown-badge" class="badge-count hidden">0</span></button>
       <a href="/live" class="btn-live">Temps réel</a>
     </div>
   </header>
@@ -48,6 +48,12 @@
       </table>
       <p class="modal-note">Cache read vide = multiplicateur Anthropic ×0.1 sur l'input.</p>
     </div>
+  </div>
+
+  <div id="model-warning-banner" class="model-warning-banner hidden">
+    <span class="alert-banner-icon">ℹ</span>
+    <span id="model-warning-text"></span>
+    <button class="btn-sm" id="model-warning-configure">Configurer les prix →</button>
   </div>
 
   <div id="alert-banner" class="alert-banner hidden">

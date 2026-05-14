@@ -190,6 +190,35 @@ canvas { max-height: 280px; }
 .btn-sm.danger { border-color: var(--warn); color: var(--warn); }
 .btn-sm:disabled { opacity: 0.4; cursor: default; }
 
+/* Model unknown warning banner */
+.model-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  background: rgba(107, 209, 255, 0.08);
+  border-bottom: 1px solid rgba(107, 209, 255, 0.30);
+  color: var(--accent-2);
+  font-size: 13px;
+}
+
+/* Badge count on button */
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  background: var(--warn);
+  color: var(--bg);
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 /* Alert banner */
 .alert-banner {
   display: flex;
