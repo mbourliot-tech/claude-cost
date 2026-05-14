@@ -128,7 +128,17 @@
     </div>
 
     <div class="card wide" id="card-plans">
-      <h2>Comparaison de plans</h2>
+      <div class="card-header">
+        <h2>Comparaison de plans</h2>
+        <label style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;">
+          Période
+          <select id="plans-months" class="form-input" style="padding:4px 8px;font-size:12px;">
+            <option value="3">3 mois</option>
+            <option value="6">6 mois</option>
+            <option value="12" selected>12 mois</option>
+          </select>
+        </label>
+      </div>
       <div class="plans-layout">
         <div class="plans-chart-wrap">
           <canvas id="chart-plans"></canvas>

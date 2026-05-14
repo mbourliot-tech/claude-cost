@@ -368,21 +368,24 @@ const PLANS = [
 let planChart = null;
 
 async function refreshPlans() {
-  const rows = await jget("/api/by-month?months=12");
-  renderPlansChart(rows);
-  renderPlansTable(rows);
+  const months = parseInt($("#plans-months").value, 10) || 12;
+  const rows = await jget(`/api/by-month?months=${months}`);
+  renderPlansChart(rows, months);
+  renderPlansTable(rows, months);
 }
+
+$("#plans-months").addEventListener("change", () => refreshPlans().catch(() => {}));
 
 function currentYearMonth() {
   const n = new Date();
   return `${n.getUTCFullYear()}-${String(n.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function renderPlansChart(rows) {
+function renderPlansChart(rows, months = 12) {
   const ctx = $("#chart-plans").getContext("2d");
   const current = currentYearMonth();
   // Tous les mois de la période + mois courant, avec $0 pour les mois sans données
-  const allM = [...allCompletedMonths(12), current];
+  const allM = [...allCompletedMonths(months), current];
   const costByMonth = Object.fromEntries(rows.map((r) => [r.month, r.cost_usd]));
   const labels = allM;
   const costs  = allM.map((m) => costByMonth[m] || 0);
@@ -446,10 +449,10 @@ function allCompletedMonths(months) {
   return result;
 }
 
-function renderPlansTable(rows) {
+function renderPlansTable(rows, months = 12) {
   const current = currentYearMonth();
   // Tous les mois complets de la période, même ceux sans données (= $0 d'API)
-  const allMonths = allCompletedMonths(12);
+  const allMonths = allCompletedMonths(months);
   const n = allMonths.length;
   const costByMonth = Object.fromEntries(rows.map((r) => [r.month, r.cost_usd]));
   const totalApi = allMonths.reduce((s, m) => s + (costByMonth[m] || 0), 0);
