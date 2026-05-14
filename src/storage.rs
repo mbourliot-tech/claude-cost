@@ -265,7 +265,9 @@ impl Store {
         let conn = self.conn.lock().unwrap();
         let mut sql = String::from(
             "SELECT session_id, project_path, MIN(ts), MAX(ts), SUM(cost_usd), COUNT(*), \
-             SUM(cache_read_tokens), SUM(input_tokens) FROM usage",
+             SUM(cache_read_tokens), SUM(input_tokens), \
+             MAX(input_tokens + cache_read_tokens + cache_5m_tokens + cache_1h_tokens) \
+             FROM usage",
         );
         let mut params_owned: Vec<String> = Vec::new();
         if let Some(p) = project {
@@ -288,6 +290,7 @@ impl Store {
                     calls: r.get::<_, i64>(5)? as u64,
                     cache_read_tokens: r.get::<_, i64>(6)? as u64,
                     input_tokens: r.get::<_, i64>(7)? as u64,
+                    peak_context_tokens: r.get::<_, i64>(8)? as u64,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -543,4 +546,5 @@ pub struct BySession {
     pub calls: u64,
     pub cache_read_tokens: u64,
     pub input_tokens: u64,
+    pub peak_context_tokens: u64,
 }

@@ -188,6 +188,25 @@ function renderProjects(rows) {
   }
 }
 
+const CTX_1M   = 1_048_576;
+const CTX_256K = 262_144;
+const CTX_200K = 200_000;
+
+function ctxColor(tokens) {
+  if (tokens >= CTX_1M)   return "var(--danger, #ff5572)";
+  if (tokens >= CTX_256K) return "var(--warn)";
+  if (tokens >= CTX_200K) return "#f0c040";
+  return "var(--muted)";
+}
+
+function ctxLabel(tokens) {
+  const t = fmtTok(tokens);
+  if (tokens >= CTX_1M)   return `${t} >1M`;
+  if (tokens >= CTX_256K) return `${t} >256K`;
+  if (tokens >= CTX_200K) return `${t} >200K`;
+  return t;
+}
+
 function renderSessions(rows) {
   const tbody = $("#tbl-sessions tbody");
   tbody.innerHTML = "";
@@ -196,8 +215,9 @@ function renderSessions(rows) {
       ? ((r.cache_read_tokens / (r.input_tokens + r.cache_read_tokens)) * 100).toFixed(0) + "%"
       : "—";
     const hitClass = parseFloat(hitRate) >= 80 ? "good" : parseFloat(hitRate) >= 40 ? "" : "warn";
+    const ctx = r.peak_context_tokens || 0;
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.session_id.slice(0, 8)}…</td><td>${escapeHtml(shortenPath(r.project_path))}</td><td>${shortTs(r.started_at)}</td><td>${shortTs(r.ended_at)}</td><td class="right">${fmtUsd(r.cost_usd)}</td><td class="right">${fmtNum(r.calls)}</td><td class="right" style="color:var(--${hitClass || 'text'})">${hitRate}</td>`;
+    tr.innerHTML = `<td>${r.session_id.slice(0, 8)}…</td><td>${escapeHtml(shortenPath(r.project_path))}</td><td>${shortTs(r.started_at)}</td><td>${shortTs(r.ended_at)}</td><td class="right">${fmtUsd(r.cost_usd)}</td><td class="right">${fmtNum(r.calls)}</td><td class="right" style="color:var(--${hitClass || 'text'})">${hitRate}</td><td class="right" style="color:${ctxColor(ctx)}" title="${ctx.toLocaleString()} tokens">${ctxLabel(ctx)}</td>`;
     tbody.appendChild(tr);
   }
 }
