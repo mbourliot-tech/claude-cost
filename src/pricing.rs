@@ -74,7 +74,7 @@ pub fn cost_usd(usage: &RawUsage, model: &str) -> f64 {
 
 /// Returns the effective price for `model`, checking `overrides` first (exact match),
 /// then falling back to the built-in `price_for` patterns.
-pub fn effective_price<'a>(model: &str, overrides: &'a HashMap<String, ModelPrice>) -> Option<ModelPrice> {
+pub fn effective_price(model: &str, overrides: &HashMap<String, ModelPrice>) -> Option<ModelPrice> {
     overrides.get(model).copied().or_else(|| price_for(model))
 }
 

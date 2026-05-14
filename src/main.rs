@@ -45,11 +45,7 @@ fn hit_str(cache_read: u64, input: u64) -> String {
 }
 
 fn short_path(p: &str) -> &str {
-    let norm = p.replace('\\', "/");
-    // keep last segment
-    norm.split('/').filter(|s| !s.is_empty()).last()
-        .map(|_| p.split(|c| c == '/' || c == '\\').filter(|s| !s.is_empty()).last().unwrap_or(p))
-        .unwrap_or(p)
+    p.split(['/', '\\']).rfind(|s| !s.is_empty()).unwrap_or(p)
 }
 
 // ── CLI ───────────────────────────────────────────────────────────────────────
@@ -342,7 +338,7 @@ async fn cmd_live(store: Arc<storage::Store>, projects_dir: PathBuf, interval: u
         for r in new_rows.iter().rev() {
             if seen.insert(r.message_id.clone()) {
                 print_live_row(r);
-                if last_ts.as_deref().map_or(true, |lt| r.ts.as_str() > lt) {
+                if last_ts.as_ref().is_none_or(|lt| r.ts.as_str() > lt.as_str()) {
                     last_ts = Some(r.ts.clone());
                 }
             }
