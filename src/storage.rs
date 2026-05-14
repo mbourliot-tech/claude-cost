@@ -27,6 +27,14 @@ impl Store {
                 output_per_mtok     REAL NOT NULL,
                 cache_read_per_mtok REAL
             );
+            CREATE TABLE IF NOT EXISTS alerts (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                name            TEXT NOT NULL,
+                period          TEXT NOT NULL,
+                project_path    TEXT,
+                threshold_usd   REAL NOT NULL,
+                enabled         INTEGER NOT NULL DEFAULT 1
+            );
             CREATE TABLE IF NOT EXISTS usage (
                 message_id        TEXT PRIMARY KEY,
                 session_id        TEXT NOT NULL,
@@ -333,6 +341,67 @@ impl Store {
         Ok(rows)
     }
 
+    pub fn list_alerts(&self) -> Result<Vec<Alert>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, period, project_path, threshold_usd, enabled FROM alerts ORDER BY id",
+        )?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(Alert {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    period: r.get(2)?,
+                    project_path: r.get(3)?,
+                    threshold_usd: r.get(4)?,
+                    enabled: r.get::<_, i64>(5)? != 0,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    pub fn insert_alert(&self, name: &str, period: &str, project_path: Option<&str>, threshold_usd: f64) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO alerts (name, period, project_path, threshold_usd) VALUES (?1, ?2, ?3, ?4)",
+            params![name, period, project_path, threshold_usd],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn update_alert(&self, id: i64, name: &str, period: &str, project_path: Option<&str>, threshold_usd: f64, enabled: bool) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE alerts SET name=?2, period=?3, project_path=?4, threshold_usd=?5, enabled=?6 WHERE id=?1",
+            params![id, name, period, project_path, threshold_usd, enabled as i64],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_alert(&self, id: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM alerts WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn alert_spend(&self, since: &str, project_path: Option<&str>) -> Result<f64> {
+        let conn = self.conn.lock().unwrap();
+        let cost: f64 = match project_path {
+            Some(p) => conn.query_row(
+                "SELECT COALESCE(SUM(cost_usd), 0) FROM usage WHERE ts >= ?1 AND project_path = ?2",
+                params![since, p],
+                |r| r.get(0),
+            )?,
+            None => conn.query_row(
+                "SELECT COALESCE(SUM(cost_usd), 0) FROM usage WHERE ts >= ?1",
+                params![since],
+                |r| r.get(0),
+            )?,
+        };
+        Ok(cost)
+    }
+
     pub fn last_timestamp(&self) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         let ts: Option<String> = conn
@@ -452,6 +521,16 @@ pub struct ModelPriceOverride {
     pub input_per_mtok: f64,
     pub output_per_mtok: f64,
     pub cache_read_per_mtok: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct Alert {
+    pub id: i64,
+    pub name: String,
+    pub period: String,
+    pub project_path: Option<String>,
+    pub threshold_usd: f64,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Serialize)]

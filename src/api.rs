@@ -2,6 +2,7 @@ use crate::assets::StaticAssets;
 use crate::pricing;
 use crate::scanner;
 use crate::storage::Store;
+use chrono::{Datelike, Utc};
 use axum::{
     extract::{Path as AxPath, Query, State},
     http::{header, HeaderValue, StatusCode},
@@ -40,6 +41,8 @@ pub fn router(store: Arc<Store>, projects_dir: PathBuf) -> Router {
         .route("/api/by-hour", get(api_by_hour))
         .route("/api/model-prices", get(api_model_prices))
         .route("/api/model-prices/{model}", put(api_put_model_price).delete(api_delete_model_price))
+        .route("/api/alerts", get(api_list_alerts).post(api_create_alert))
+        .route("/api/alerts/{id}", put(api_update_alert).delete(api_delete_alert))
         .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -235,6 +238,98 @@ async fn api_delete_model_price(
 async fn api_last_timestamp(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiErr> {
     let ts = s.store.last_timestamp()?;
     Ok(Json(json!({ "last_timestamp": ts })))
+}
+
+fn period_start(period: &str) -> String {
+    let now = Utc::now();
+    match period {
+        "week" => {
+            let days_from_monday = now.weekday().num_days_from_monday() as i64;
+            let monday = now - chrono::Duration::days(days_from_monday);
+            monday.format("%Y-%m-%dT00:00:00Z").to_string()
+        }
+        "month" => format!("{:04}-{:02}-01T00:00:00Z", now.year(), now.month()),
+        _ => "1970-01-01T00:00:00Z".to_string(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct AlertBody {
+    name: String,
+    period: String,
+    project_path: Option<String>,
+    threshold_usd: f64,
+    enabled: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+struct AlertStatus {
+    id: i64,
+    name: String,
+    period: String,
+    project_path: Option<String>,
+    threshold_usd: f64,
+    enabled: bool,
+    current_usd: f64,
+    is_triggered: bool,
+}
+
+async fn api_list_alerts(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiErr> {
+    let alerts = s.store.list_alerts()?;
+    let mut statuses: Vec<AlertStatus> = Vec::with_capacity(alerts.len());
+    for a in alerts {
+        let since = period_start(&a.period);
+        let current_usd = s.store.alert_spend(&since, a.project_path.as_deref())?;
+        let is_triggered = a.enabled && current_usd >= a.threshold_usd;
+        statuses.push(AlertStatus {
+            id: a.id,
+            name: a.name,
+            period: a.period,
+            project_path: a.project_path,
+            threshold_usd: a.threshold_usd,
+            enabled: a.enabled,
+            current_usd,
+            is_triggered,
+        });
+    }
+    Ok(Json(serde_json::to_value(statuses)?))
+}
+
+async fn api_create_alert(
+    State(s): State<AppState>,
+    Json(body): Json<AlertBody>,
+) -> Result<Json<serde_json::Value>, ApiErr> {
+    let id = s.store.insert_alert(
+        &body.name,
+        &body.period,
+        body.project_path.as_deref(),
+        body.threshold_usd,
+    )?;
+    Ok(Json(json!({ "id": id })))
+}
+
+async fn api_update_alert(
+    State(s): State<AppState>,
+    AxPath(id): AxPath<i64>,
+    Json(body): Json<AlertBody>,
+) -> Result<Json<serde_json::Value>, ApiErr> {
+    s.store.update_alert(
+        id,
+        &body.name,
+        &body.period,
+        body.project_path.as_deref(),
+        body.threshold_usd,
+        body.enabled.unwrap_or(true),
+    )?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn api_delete_alert(
+    State(s): State<AppState>,
+    AxPath(id): AxPath<i64>,
+) -> Result<Json<serde_json::Value>, ApiErr> {
+    s.store.delete_alert(id)?;
+    Ok(Json(json!({ "ok": true })))
 }
 
 async fn api_rescan(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiErr> {

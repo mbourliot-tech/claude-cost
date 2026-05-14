@@ -190,6 +190,59 @@ canvas { max-height: 280px; }
 .btn-sm.danger { border-color: var(--warn); color: var(--warn); }
 .btn-sm:disabled { opacity: 0.4; cursor: default; }
 
+/* Alert banner */
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  background: rgba(255, 184, 107, 0.12);
+  border-bottom: 1px solid rgba(255, 184, 107, 0.4);
+  color: var(--warn);
+  font-size: 13px;
+}
+.alert-banner.critical {
+  background: rgba(255, 85, 114, 0.12);
+  border-bottom-color: rgba(255, 85, 114, 0.4);
+  color: #ff5572;
+}
+.alert-banner-icon { font-size: 16px; flex-shrink: 0; }
+
+/* Card header with action button */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.card-header h2 { margin: 0; }
+
+.alerts-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+
+/* Alert status badge */
+.status-ok   { color: var(--good); font-weight: 600; }
+.status-warn { color: var(--warn); font-weight: 600; }
+
+/* Alert form modal */
+.modal-box-sm { width: 440px; }
+.form-grid { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+.form-label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+.form-input {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color-scheme: dark;
+}
+.form-input:focus { outline: none; border-color: var(--accent); }
+.form-hint { color: var(--muted); font-weight: 400; text-transform: none; font-size: 11px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Toggle checkbox */
+.toggle-enabled { cursor: pointer; accent-color: var(--accent); width: 15px; height: 15px; }
+
 @media (max-width: 900px) {
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .cache-bar { grid-template-columns: repeat(2, 1fr); }

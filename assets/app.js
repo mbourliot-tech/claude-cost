@@ -76,6 +76,8 @@ async function refresh() {
   ];
   const [summary, byModel, byProject, bySession, cacheStats, timeData] = await Promise.all(fetches);
 
+  refreshAlerts().catch(() => {});
+
   $("#kpi-cost").textContent = fmtUsd(summary.total_cost_usd);
   $("#kpi-calls").textContent = fmtNum(summary.calls);
   $("#kpi-sessions").textContent = fmtNum(summary.sessions);
@@ -328,5 +330,150 @@ async function resetPrice(btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = "Réinitialiser";
+  }
+}
+
+// ── Alertes budget ───────────────────────────────────────────────────────────
+
+let allProjects = [];
+let cachedAlerts = [];
+
+async function refreshAlerts() {
+  cachedAlerts = await jget("/api/alerts");
+  renderAlertBanner(cachedAlerts);
+  renderAlertsTable(cachedAlerts);
+}
+
+function renderAlertBanner(alerts) {
+  const triggered = alerts.filter((a) => a.is_triggered);
+  const banner = $("#alert-banner");
+  if (triggered.length === 0) {
+    banner.classList.add("hidden");
+    banner.classList.remove("critical");
+    return;
+  }
+  banner.classList.remove("hidden");
+  const msgs = triggered.map((a) => {
+    const period = a.period === "week" ? "cette semaine" : "ce mois";
+    const proj = a.project_path ? ` [${shortenPath(a.project_path)}]` : "";
+    return `${escapeHtml(a.name)}${proj} : ${fmtUsd(a.current_usd)} / ${fmtUsd(a.threshold_usd)} ${period}`;
+  });
+  $("#alert-banner-text").textContent = msgs.join("  ·  ");
+}
+
+function renderAlertsTable(alerts) {
+  const empty = $("#alerts-empty");
+  const tbl = $("#tbl-alerts");
+  const tbody = $("#tbl-alerts-body");
+  if (alerts.length === 0) {
+    empty.classList.remove("hidden");
+    tbl.classList.add("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+  tbl.classList.remove("hidden");
+  tbody.innerHTML = "";
+  for (const a of alerts) {
+    const tr = document.createElement("tr");
+    tr.dataset.id = a.id;
+    const periodLabel = a.period === "week" ? "Semaine" : "Mois";
+    const proj = a.project_path ? escapeHtml(shortenPath(a.project_path)) : "<em style='color:var(--muted)'>global</em>";
+    const pct = a.threshold_usd > 0 ? Math.min(100, (a.current_usd / a.threshold_usd) * 100).toFixed(0) : 0;
+    const statusClass = a.is_triggered ? "status-warn" : "status-ok";
+    const statusText = a.is_triggered ? `⚠ ${pct}%` : `✓ ${pct}%`;
+    tr.innerHTML = `
+      <td><input type="checkbox" class="toggle-enabled" ${a.enabled ? "checked" : ""} title="Activer/désactiver" onchange="toggleAlert(${a.id}, this)" /> ${escapeHtml(a.name)}</td>
+      <td>${periodLabel}</td>
+      <td>${proj}</td>
+      <td class="right">${fmtUsd(a.threshold_usd)}</td>
+      <td class="right">${fmtUsd(a.current_usd)}</td>
+      <td class="right ${statusClass}">${statusText}</td>
+      <td class="right"><button class="btn-sm danger" onclick="deleteAlert(${a.id})">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+async function deleteAlert(id) {
+  await fetch(`/api/alerts/${id}`, { method: "DELETE" });
+  await refreshAlerts();
+}
+
+async function toggleAlert(id, checkbox) {
+  const a = cachedAlerts.find((x) => x.id === id);
+  if (!a) return;
+  await fetch(`/api/alerts/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: a.name,
+      period: a.period,
+      project_path: a.project_path,
+      threshold_usd: a.threshold_usd,
+      enabled: checkbox.checked,
+    }),
+  });
+  await refreshAlerts();
+}
+
+// ── Modal alerte ─────────────────────────────────────────────────────────────
+
+$("#btn-add-alert").addEventListener("click", openAlertModal);
+$("#close-alert").addEventListener("click", closeAlertModal);
+$("#cancel-alert").addEventListener("click", closeAlertModal);
+$("#modal-alert").addEventListener("click", (e) => { if (e.target === $("#modal-alert")) closeAlertModal(); });
+$("#submit-alert").addEventListener("click", submitAlert);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closePricesModal(); closeAlertModal(); }
+});
+
+async function openAlertModal() {
+  // Populate project list
+  const projects = await jget("/api/by-project");
+  allProjects = projects;
+  const sel = $("#alert-project");
+  sel.innerHTML = `<option value="">Global (tous projets)</option>`;
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p.project_path;
+    opt.textContent = shortenPath(p.project_path);
+    sel.appendChild(opt);
+  }
+  // Reset form
+  $("#alert-name").value = "";
+  $("#alert-period").value = "month";
+  $("#alert-project").value = "";
+  $("#alert-threshold").value = "";
+  $("#modal-alert").classList.remove("hidden");
+  $("#alert-name").focus();
+}
+
+function closeAlertModal() {
+  $("#modal-alert").classList.add("hidden");
+}
+
+async function submitAlert() {
+  const name = $("#alert-name").value.trim();
+  const period = $("#alert-period").value;
+  const project_path = $("#alert-project").value || null;
+  const threshold_usd = parseFloat($("#alert-threshold").value);
+  if (!name || isNaN(threshold_usd) || threshold_usd <= 0) {
+    $("#alert-name").focus();
+    return;
+  }
+  const btn = $("#submit-alert");
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    await fetch("/api/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, period, project_path, threshold_usd }),
+    });
+    closeAlertModal();
+    await refreshAlerts();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Créer";
   }
 }
