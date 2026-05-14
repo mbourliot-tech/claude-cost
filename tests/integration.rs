@@ -83,7 +83,9 @@ fn second_scan_is_idempotent() {
 
     assert_eq!(r1.new_calls, 6);
     assert_eq!(r2.new_calls, 0, "rescan must not insert duplicates");
-    assert_eq!(r2.unique_calls, 6, "parser still sees 6 records on disk");
+    // Avec le scan incrémental, les fichiers inchangés sont sautés entièrement
+    assert_eq!(r2.unique_calls, 0, "unchanged files are skipped by incremental scanner");
+    assert_eq!(r2.sessions_seen, 0, "no files re-parsed when mtime unchanged");
 }
 
 #[test]
@@ -248,6 +250,8 @@ fn reinsert_with_different_cost_repricies_existing_row() {
         cost_usd: 4.0, // old tier ($1/$3)
         service_tier: None,
         speed: None,
+        web_search_requests: 0,
+        web_fetch_requests: 0,
     };
     let n1 = db.store.insert_batch(&[rec.clone()]).unwrap();
     assert_eq!(n1, 1, "first insert counts as a touched row");
@@ -273,4 +277,108 @@ fn missing_projects_dir_does_not_error() {
     let ghost = std::env::temp_dir().join(format!("claude-cost-ghost-{}-x", std::process::id()));
     let report = scanner::scan_all(&ghost, &db.store).expect("scan should tolerate missing dir");
     assert_eq!(report.sessions_seen, 0);
+}
+
+// ── Tests API HTTP ────────────────────────────────────────────────────────────
+
+use axum::{body::Body, http::Request};
+use claude_cost::api;
+use std::sync::Arc;
+use tower::ServiceExt;
+
+async fn build_app() -> (axum::Router, TestDb) {
+    let db = TestDb::new();
+    let store = Arc::new(claude_cost::storage::Store::open(&db.path).unwrap());
+    let app = api::router(store, std::env::temp_dir());
+    (app, db)
+}
+
+async fn get_json(app: axum::Router, uri: &str) -> serde_json::Value {
+    let resp = app
+        .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "GET {uri} should return 200");
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+#[tokio::test]
+async fn api_summary_empty_store() {
+    let (app, _db) = build_app().await;
+    let v = get_json(app, "/api/summary").await;
+    assert_eq!(v["total_cost_usd"].as_f64().unwrap(), 0.0);
+    assert_eq!(v["calls"].as_u64().unwrap(), 0);
+}
+
+#[tokio::test]
+async fn api_by_weekday_returns_seven_entries() {
+    let (app, _db) = build_app().await;
+    let v = get_json(app, "/api/by-weekday").await;
+    let arr = v.as_array().unwrap();
+    assert_eq!(arr.len(), 7, "by-weekday must return exactly 7 entries");
+    assert_eq!(arr[0]["label"].as_str().unwrap(), "Lun");
+    assert_eq!(arr[6]["label"].as_str().unwrap(), "Dim");
+}
+
+#[tokio::test]
+async fn api_by_hourofday_returns_24_entries() {
+    let (app, _db) = build_app().await;
+    let v = get_json(app, "/api/by-hourofday").await;
+    let arr = v.as_array().unwrap();
+    assert_eq!(arr.len(), 24, "by-hourofday must return exactly 24 entries");
+    assert_eq!(arr[0]["hour"].as_u64().unwrap(), 0);
+    assert_eq!(arr[23]["hour"].as_u64().unwrap(), 23);
+}
+
+#[tokio::test]
+async fn api_export_csv_returns_header_line() {
+    let (app, _db) = build_app().await;
+    let resp = app
+        .oneshot(Request::builder().uri("/api/export.csv").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let text = std::str::from_utf8(&bytes).unwrap();
+    assert!(text.starts_with("message_id,"), "CSV must start with header");
+    assert!(text.contains("cost_usd"), "CSV header must contain cost_usd");
+}
+
+#[tokio::test]
+async fn api_alerts_crud() {
+    let (app, _db) = build_app().await;
+    // Initially empty
+    let v = get_json(app.clone(), "/api/alerts").await;
+    assert_eq!(v.as_array().unwrap().len(), 0);
+
+    // Create
+    let body = serde_json::json!({"name":"test","period":"month","project_path":null,"threshold_usd":50.0});
+    let resp = app.clone()
+        .oneshot(Request::builder().uri("/api/alerts").method("POST")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string())).unwrap())
+        .await.unwrap();
+    assert_eq!(resp.status(), 200);
+
+    // List — one entry
+    let v = get_json(app, "/api/alerts").await;
+    let arr = v.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["name"].as_str().unwrap(), "test");
+    assert_eq!(arr[0]["threshold_usd"].as_f64().unwrap(), 50.0);
+}
+
+#[tokio::test]
+async fn api_model_prices_returns_array() {
+    let (app, _db) = build_app().await;
+    let v = get_json(app, "/api/model-prices").await;
+    assert!(v.is_array(), "model-prices must return an array");
+}
+
+#[tokio::test]
+async fn api_by_month_returns_array() {
+    let (app, _db) = build_app().await;
+    let v = get_json(app, "/api/by-month?months=3").await;
+    assert!(v.is_array(), "by-month must return an array");
 }

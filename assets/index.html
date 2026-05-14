@@ -37,13 +37,7 @@
       </div>
       <table id="tbl-prices">
         <thead>
-          <tr>
-            <th>Modèle</th>
-            <th class="right">Input</th>
-            <th class="right">Output</th>
-            <th class="right">Cache read</th>
-            <th></th>
-          </tr>
+          <tr><th>Modèle</th><th class="right">Input</th><th class="right">Output</th><th class="right">Cache read</th><th></th></tr>
         </thead>
         <tbody id="tbl-prices-body"></tbody>
       </table>
@@ -83,7 +77,7 @@
     </div>
   </div>
 
-  <!-- Banners (toujours visibles) -->
+  <!-- Banners -->
   <div id="model-warning-banner" class="model-warning-banner hidden">
     <span class="alert-banner-icon">ℹ</span>
     <span id="model-warning-text"></span>
@@ -95,24 +89,37 @@
     <button class="btn-sm" id="alert-banner-goto" style="margin-left:auto">Voir les alertes →</button>
   </div>
 
-  <!-- Navigation par onglets -->
+  <!-- Navigation -->
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="overview">Vue d'ensemble</button>
     <button class="tab-btn" data-tab="sessions">Sessions</button>
     <button class="tab-btn" data-tab="plans">Plans</button>
-    <button class="tab-btn" data-tab="alertes">
-      Alertes
-      <span id="alert-tab-badge" class="badge-count hidden">0</span>
-    </button>
+    <button class="tab-btn" data-tab="alertes">Alertes <span id="alert-tab-badge" class="badge-count hidden">0</span></button>
   </nav>
 
   <!-- Onglet 1 : Vue d'ensemble -->
   <div class="tab-section active" id="tab-overview">
     <section class="kpis">
-      <div class="kpi"><span class="label">Coût total</span><span id="kpi-cost" class="value">—</span></div>
-      <div class="kpi"><span class="label">Appels API</span><span id="kpi-calls" class="value">—</span></div>
-      <div class="kpi"><span class="label">Sessions</span><span id="kpi-sessions" class="value">—</span></div>
-      <div class="kpi"><span class="label">Tokens (entrée + sortie)</span><span id="kpi-tokens" class="value">—</span></div>
+      <div class="kpi">
+        <span class="label">Coût total</span>
+        <span id="kpi-cost" class="value">—</span>
+        <span id="kpi-cost-trend" class="kpi-trend"></span>
+      </div>
+      <div class="kpi">
+        <span class="label">Appels API</span>
+        <span id="kpi-calls" class="value">—</span>
+        <span id="kpi-calls-trend" class="kpi-trend"></span>
+      </div>
+      <div class="kpi">
+        <span class="label">Sessions</span>
+        <span id="kpi-sessions" class="value">—</span>
+        <span id="kpi-sessions-trend" class="kpi-trend"></span>
+      </div>
+      <div class="kpi">
+        <span class="label">Tokens (entrée + sortie)</span>
+        <span id="kpi-tokens" class="value">—</span>
+        <span id="kpi-tokens-trend" class="kpi-trend"></span>
+      </div>
     </section>
 
     <section class="cache-bar">
@@ -139,6 +146,14 @@
           <tbody></tbody>
         </table>
       </div>
+      <div class="card">
+        <h2>Coût par jour de semaine</h2>
+        <canvas id="chart-weekday"></canvas>
+      </div>
+      <div class="card">
+        <h2>Coût par heure de la journée</h2>
+        <canvas id="chart-hourofday"></canvas>
+      </div>
     </section>
   </div>
 
@@ -146,9 +161,33 @@
   <div class="tab-section" id="tab-sessions">
     <section class="grid">
       <div class="card wide">
-        <h2>Sessions récentes</h2>
+        <div class="card-header">
+          <h2>Sessions</h2>
+          <div class="sessions-controls">
+            <label class="ctrl-label">Limite
+              <select id="sessions-limit" class="form-input ctrl-select">
+                <option value="20">20</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
+              </select>
+            </label>
+            <label class="ctrl-label">Projet
+              <select id="sessions-project" class="form-input ctrl-select" style="max-width:180px">
+                <option value="">Tous</option>
+              </select>
+            </label>
+            <a href="/api/export.csv" target="_blank" class="btn-sm">↓ Export CSV</a>
+          </div>
+        </div>
         <table id="tbl-sessions">
-          <thead><tr><th>Session</th><th>Projet</th><th>Début</th><th>Fin</th><th class="right">Coût</th><th class="right">Appels</th><th class="right">Cache hit</th><th class="right">Ctx max</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Session</th><th>Projet</th><th>Début</th><th>Fin</th>
+              <th class="right">Coût</th><th class="right">Appels</th>
+              <th class="right">Cache hit</th><th class="right">Ctx max</th>
+            </tr>
+          </thead>
           <tbody></tbody>
         </table>
       </div>
@@ -178,13 +217,9 @@
             <table id="tbl-plans">
               <thead>
                 <tr>
-                  <th>Plan</th>
-                  <th class="right">Prix/mois</th>
-                  <th class="right">Coût sur période</th>
-                  <th class="right">Votre API</th>
-                  <th class="right">Δ économie</th>
-                  <th class="right">Mois rentables</th>
-                  <th class="right">Régularité</th>
+                  <th>Plan</th><th class="right">Prix/mois</th><th class="right">Coût sur période</th>
+                  <th class="right">Votre API</th><th class="right">Δ économie</th>
+                  <th class="right">Mois rentables</th><th class="right">Régularité</th>
                 </tr>
               </thead>
               <tbody id="tbl-plans-body"></tbody>
@@ -208,13 +243,9 @@
         <table id="tbl-alerts" class="hidden">
           <thead>
             <tr>
-              <th>Nom</th>
-              <th>Période</th>
-              <th>Projet</th>
-              <th class="right">Seuil</th>
-              <th class="right">Actuel</th>
-              <th class="right">Statut</th>
-              <th></th>
+              <th>Nom</th><th>Période</th><th>Projet</th>
+              <th class="right">Seuil</th><th class="right">Actuel</th>
+              <th class="right">Statut</th><th></th>
             </tr>
           </thead>
           <tbody id="tbl-alerts-body"></tbody>
@@ -225,6 +256,7 @@
 
   <footer>
     <span id="footer-meta">—</span>
+    <span id="footer-refresh" style="margin-left:auto;color:var(--muted);font-size:11px"></span>
   </footer>
 
   <script src="/assets/app.js"></script>

@@ -11,6 +11,9 @@ const fmtTok = (n) => {
 
 let dayChart = null;
 let modelChart = null;
+let weekdayChart = null;
+let hourOfDayChart = null;
+let lastAutoTs = null;
 
 function periodToRange(value) {
   const now = new Date();
@@ -58,27 +61,66 @@ function qs(params) {
   return s ? "?" + s : "";
 }
 
+function prevPeriodParams(period, range) {
+  const now = new Date();
+  const iso = (d) => d.toISOString();
+  switch (period) {
+    case "today": {
+      const y = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+      return { since: iso(y), until: iso(new Date(Date.UTC(y.getUTCFullYear(), y.getUTCMonth(), y.getUTCDate(), 23, 59, 59))) };
+    }
+    case "day": {
+      if (!range.since) return null;
+      const d = new Date(range.since); d.setUTCDate(d.getUTCDate() - 1);
+      return { since: iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))),
+               until: iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59))) };
+    }
+    case "7d": {
+      const end = new Date(now); end.setUTCDate(end.getUTCDate() - 7);
+      const start = new Date(end); start.setUTCDate(start.getUTCDate() - 7);
+      return { since: iso(start), until: iso(end) };
+    }
+    case "30d": {
+      const end = new Date(now); end.setUTCDate(end.getUTCDate() - 30);
+      const start = new Date(end); start.setUTCDate(start.getUTCDate() - 30);
+      return { since: iso(start), until: iso(end) };
+    }
+    case "month": {
+      const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const lastPrev = new Date(first); lastPrev.setUTCDate(0);
+      const firstPrev = new Date(Date.UTC(lastPrev.getUTCFullYear(), lastPrev.getUTCMonth(), 1));
+      return { since: iso(firstPrev), until: iso(lastPrev) };
+    }
+    default: return null;
+  }
+}
+
 async function refresh() {
   const period = $("#period").value;
   const range = periodToRange(period);
   const params = { since: range.since, until: range.until };
   const isToday = range.hourly === true;
+  const prevP = prevPeriodParams(period, range);
+  const sessLimit = parseInt($("#sessions-limit")?.value, 10) || 50;
+  const sessProject = $("#sessions-project")?.value || undefined;
 
   const fetches = [
     jget("/api/summary" + qs(params)),
     jget("/api/by-model" + qs(params)),
     jget("/api/by-project" + qs(params)),
-    jget("/api/by-session?limit=20"),
+    jget("/api/by-session" + qs({ limit: sessLimit, project: sessProject })),
     jget("/api/cache-stats" + qs(params)),
-    isToday
-      ? jget("/api/by-hour" + qs(params))
-      : jget("/api/by-day?days=" + range.days),
+    isToday ? jget("/api/by-hour" + qs(params)) : jget("/api/by-day?days=" + range.days),
     jget("/api/model-prices"),
+    prevP ? jget("/api/summary" + qs(prevP)) : Promise.resolve(null),
+    jget("/api/by-weekday" + qs(params)),
+    jget("/api/by-hourofday" + qs(params)),
   ];
-  const [summary, byModel, byProject, bySession, cacheStats, timeData, modelPrices] = await Promise.all(fetches);
+  const [summary, byModel, byProject, bySession, cacheStats, timeData, modelPrices, prevSummary, weekdayData, hourData] =
+    await Promise.all(fetches);
+
   priceRows = modelPrices;
   renderModelWarnings(modelPrices);
-
   refreshAlerts().catch(() => {});
   refreshPlans().catch(() => {});
 
@@ -86,6 +128,7 @@ async function refresh() {
   $("#kpi-calls").textContent = fmtNum(summary.calls);
   $("#kpi-sessions").textContent = fmtNum(summary.sessions);
   $("#kpi-tokens").textContent = fmtTok((summary.input_tokens || 0) + (summary.output_tokens || 0));
+  renderTrends(summary, prevSummary, period);
 
   renderCacheStats(cacheStats);
   if (isToday) {
@@ -99,9 +142,70 @@ async function refresh() {
   renderModelChart(byModel);
   renderProjects(byProject);
   renderSessions(bySession);
+  renderWeekdayChart(weekdayData);
+  renderHourOfDayChart(hourData);
 
+  const now = new Date();
   $("#footer-meta").textContent =
     `Tokens — input ${fmtTok(summary.input_tokens)} · output ${fmtTok(summary.output_tokens)} · cache_read ${fmtTok(summary.cache_read_tokens)} · cache_write ${fmtTok((summary.cache_5m_tokens || 0) + (summary.cache_1h_tokens || 0))}`;
+  $("#footer-refresh").textContent = `Mis à jour ${now.toLocaleTimeString()}`;
+}
+
+function renderTrends(curr, prev, period) {
+  const fields = [
+    { id: "kpi-cost",     curr: curr.total_cost_usd,                                   prev: prev?.total_cost_usd,     costDir: true },
+    { id: "kpi-calls",    curr: curr.calls,                                             prev: prev?.calls,              costDir: false },
+    { id: "kpi-sessions", curr: curr.sessions,                                          prev: prev?.sessions,           costDir: false },
+    { id: "kpi-tokens",   curr: (curr.input_tokens||0)+(curr.output_tokens||0),         prev: prev ? (prev.input_tokens||0)+(prev.output_tokens||0) : null, costDir: false },
+  ];
+  const prevLabel = { today: "vs hier", "7d": "vs 7j préc.", "30d": "vs 30j préc.", month: "vs mois préc.", day: "vs j-1" }[period] || "";
+  for (const f of fields) {
+    const el = document.getElementById(f.id + "-trend");
+    if (!el) continue;
+    if (!prev || !f.prev || f.prev === 0) { el.textContent = ""; el.className = "kpi-trend"; continue; }
+    const delta = (f.curr - f.prev) / f.prev;
+    const pct = (Math.abs(delta) * 100).toFixed(0) + "%";
+    const up = delta >= 0;
+    el.textContent = `${up ? "▲" : "▼"} ${pct} ${prevLabel}`;
+    el.className = "kpi-trend " + (f.costDir ? (up ? "trend-up" : "trend-down") : (up ? "trend-neutral" : "trend-neutral"));
+  }
+}
+
+const CHART_OPTS = {
+  responsive: true,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { ticks: { color: "#8a93a6", font: { size: 11 } }, grid: { color: "#2a2f3a" } },
+    y: { ticks: { color: "#8a93a6", callback: (v) => "$" + v, font: { size: 11 } }, grid: { color: "#2a2f3a" } },
+  },
+};
+
+function renderWeekdayChart(rows) {
+  const ctx = $("#chart-weekday")?.getContext("2d");
+  if (!ctx) return;
+  if (weekdayChart) weekdayChart.destroy();
+  weekdayChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: rows.map((r) => r.label),
+      datasets: [{ data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(107,209,255,0.65)", borderColor: "#6bd1ff", borderWidth: 1 }],
+    },
+    options: CHART_OPTS,
+  });
+}
+
+function renderHourOfDayChart(rows) {
+  const ctx = $("#chart-hourofday")?.getContext("2d");
+  if (!ctx) return;
+  if (hourOfDayChart) hourOfDayChart.destroy();
+  hourOfDayChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: rows.map((r) => r.hour + "h"),
+      datasets: [{ data: rows.map((r) => r.cost_usd), backgroundColor: "rgba(94,224,138,0.65)", borderColor: "#5ee08a", borderWidth: 1 }],
+    },
+    options: CHART_OPTS,
+  });
 }
 
 function renderCacheStats(s) {
@@ -217,8 +321,12 @@ function renderSessions(rows) {
       : "—";
     const hitClass = parseFloat(hitRate) >= 80 ? "good" : parseFloat(hitRate) >= 40 ? "" : "warn";
     const ctx = r.peak_context_tokens || 0;
+    const tools = [];
+    if (r.web_search_requests > 0) tools.push(`🔍${r.web_search_requests}`);
+    if (r.web_fetch_requests > 0) tools.push(`🌐${r.web_fetch_requests}`);
+    const toolSuffix = tools.length ? ` <span style="color:var(--muted);font-size:10px">${tools.join(" ")}</span>` : "";
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.session_id.slice(0, 8)}…</td><td>${escapeHtml(shortenPath(r.project_path))}</td><td>${shortTs(r.started_at)}</td><td>${shortTs(r.ended_at)}</td><td class="right">${fmtUsd(r.cost_usd)}</td><td class="right">${fmtNum(r.calls)}</td><td class="right" style="color:var(--${hitClass || 'text'})">${hitRate}</td><td class="right" style="color:${ctxColor(ctx)}" title="${ctx.toLocaleString()} tokens">${ctxLabel(ctx)}</td>`;
+    tr.innerHTML = `<td>${r.session_id.slice(0, 8)}…</td><td>${escapeHtml(shortenPath(r.project_path))}</td><td>${shortTs(r.started_at)}</td><td>${shortTs(r.ended_at)}</td><td class="right">${fmtUsd(r.cost_usd)}</td><td class="right">${fmtNum(r.calls)}${toolSuffix}</td><td class="right" style="color:var(--${hitClass || 'text'})">${hitRate}</td><td class="right" style="color:${ctxColor(ctx)}" title="${ctx.toLocaleString()} tokens">${ctxLabel(ctx)}</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -262,10 +370,51 @@ $("#rescan").addEventListener("click", async () => {
   }
 });
 
-refresh().catch((e) => {
+refresh().then(async () => {
+  try { const d = await jget("/api/last-timestamp"); lastAutoTs = d.last_timestamp; } catch (_) {}
+}).catch((e) => {
   console.error(e);
   $("#footer-meta").textContent = "Erreur: " + e.message;
 });
+
+// ── Sessions : contrôles filtre/limite ───────────────────────────────────────
+
+async function refreshSessions() {
+  const limit = parseInt($("#sessions-limit").value, 10) || 50;
+  const project = $("#sessions-project").value || undefined;
+  const rows = await jget("/api/by-session" + qs({ limit, project }));
+  renderSessions(rows);
+}
+
+async function loadSessionProjects() {
+  const projects = await jget("/api/by-project");
+  const sel = $("#sessions-project");
+  sel.innerHTML = '<option value="">Tous</option>';
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p.project_path;
+    opt.textContent = shortenPath(p.project_path);
+    sel.appendChild(opt);
+  }
+}
+
+$("#sessions-limit").addEventListener("change", () => refreshSessions().catch(() => {}));
+$("#sessions-project").addEventListener("change", () => refreshSessions().catch(() => {}));
+
+loadSessionProjects().catch(() => {});
+
+// ── Auto-refresh ──────────────────────────────────────────────────────────────
+
+setInterval(async () => {
+  try {
+    const d = await jget("/api/last-timestamp");
+    const ts = d.last_timestamp;
+    if (ts && lastAutoTs !== null && ts !== lastAutoTs) {
+      await refresh();
+    }
+    if (ts) lastAutoTs = ts;
+  } catch (_) {}
+}, 30_000);
 
 // ── Navigation par onglets ────────────────────────────────────────────────────
 

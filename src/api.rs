@@ -42,6 +42,9 @@ pub fn router(store: Arc<Store>, projects_dir: PathBuf) -> Router {
         .route("/api/model-prices", get(api_model_prices))
         .route("/api/model-prices/{model}", put(api_put_model_price).delete(api_delete_model_price))
         .route("/api/by-month", get(api_by_month))
+        .route("/api/by-weekday", get(api_by_weekday))
+        .route("/api/by-hourofday", get(api_by_hourofday))
+        .route("/api/export.csv", get(api_export_csv))
         .route("/api/alerts", get(api_list_alerts).post(api_create_alert))
         .route("/api/alerts/{id}", put(api_update_alert).delete(api_delete_alert))
         .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
@@ -249,6 +252,56 @@ async fn api_delete_model_price(
 async fn api_last_timestamp(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiErr> {
     let ts = s.store.last_timestamp()?;
     Ok(Json(json!({ "last_timestamp": ts })))
+}
+
+async fn api_by_weekday(State(s): State<AppState>, Query(r): Query<Range>) -> Result<Json<serde_json::Value>, ApiErr> {
+    let rows = s.store.by_weekday(r.since.as_deref(), r.until.as_deref())?;
+    Ok(Json(serde_json::to_value(rows)?))
+}
+
+async fn api_by_hourofday(State(s): State<AppState>, Query(r): Query<Range>) -> Result<Json<serde_json::Value>, ApiErr> {
+    let rows = s.store.by_hourofday(r.since.as_deref(), r.until.as_deref())?;
+    Ok(Json(serde_json::to_value(rows)?))
+}
+
+async fn api_export_csv(State(s): State<AppState>, Query(r): Query<Range>) -> impl IntoResponse {
+    fn csv_field(s: &str) -> String {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    }
+    match s.store.all_usage_for_export(r.since.as_deref(), r.until.as_deref()) {
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("error: {e}")).into_response(),
+        Ok(rows) => {
+            let mut out = String::from(
+                "message_id,session_id,project_path,ts,model,\
+                 input_tokens,output_tokens,cache_read_tokens,cache_5m_tokens,cache_1h_tokens,\
+                 cost_usd,service_tier,speed,web_search_requests,web_fetch_requests\n",
+            );
+            for row in rows {
+                out.push_str(&format!(
+                    "{},{},{},{},{},{},{},{},{},{},{:.6},{},{},{},{}\n",
+                    csv_field(&row.message_id),
+                    csv_field(&row.session_id),
+                    csv_field(&row.project_path),
+                    csv_field(&row.ts),
+                    csv_field(&row.model),
+                    row.input_tokens, row.output_tokens,
+                    row.cache_read_tokens, row.cache_5m_tokens, row.cache_1h_tokens,
+                    row.cost_usd,
+                    csv_field(&row.service_tier),
+                    csv_field(&row.speed),
+                    row.web_search_requests, row.web_fetch_requests,
+                ));
+            }
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8")),
+                    (header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment; filename=\"claude-cost-export.csv\"")),
+                ],
+                out,
+            ).into_response()
+        }
+    }
 }
 
 fn period_start(period: &str) -> String {

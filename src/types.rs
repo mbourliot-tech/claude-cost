@@ -16,6 +16,8 @@ pub struct UsageRecord {
     pub cost_usd: f64,
     pub service_tier: Option<String>,
     pub speed: Option<String>,
+    pub web_search_requests: u32,
+    pub web_fetch_requests: u32,
 }
 
 /// Raw `message.usage` payload as emitted by Claude. Tolerant deserialization:
@@ -36,6 +38,8 @@ pub struct RawUsage {
     pub service_tier: Option<String>,
     #[serde(default)]
     pub speed: Option<String>,
+    #[serde(default)]
+    pub server_tool_use: Option<ServerToolUse>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -44,6 +48,14 @@ pub struct CacheCreation {
     pub ephemeral_5m_input_tokens: u64,
     #[serde(default)]
     pub ephemeral_1h_input_tokens: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ServerToolUse {
+    #[serde(default)]
+    pub web_search_requests: u32,
+    #[serde(default)]
+    pub web_fetch_requests: u32,
 }
 
 impl RawUsage {

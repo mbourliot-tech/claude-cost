@@ -99,6 +99,7 @@ mod tests {
             }),
             service_tier: None,
             speed: None,
+            server_tool_use: None,
         }
     }
 

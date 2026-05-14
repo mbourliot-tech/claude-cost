@@ -75,6 +75,10 @@ fn build_record(raw: RawLine, path: &Path, seen_ids: &mut HashSet<String>, overr
         warn!(model = %model, "unknown model — pricing 0; update pricing.rs or add an override via the dashboard");
     }
 
+    let (web_search, web_fetch) = usage.server_tool_use.as_ref()
+        .map(|s| (s.web_search_requests, s.web_fetch_requests))
+        .unwrap_or((0, 0));
+
     Some(UsageRecord {
         message_id,
         session_id,
@@ -89,6 +93,8 @@ fn build_record(raw: RawLine, path: &Path, seen_ids: &mut HashSet<String>, overr
         cost_usd,
         service_tier: usage.service_tier,
         speed: usage.speed,
+        web_search_requests: web_search,
+        web_fetch_requests: web_fetch,
     })
 }
 

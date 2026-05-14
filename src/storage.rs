@@ -21,6 +21,11 @@ impl Store {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.execute_batch(
             r#"
+            CREATE TABLE IF NOT EXISTS file_cache (
+                path        TEXT PRIMARY KEY,
+                mtime_secs  INTEGER NOT NULL,
+                file_size   INTEGER NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS model_prices (
                 model               TEXT PRIMARY KEY,
                 input_per_mtok      REAL NOT NULL,
@@ -48,7 +53,9 @@ impl Store {
                 cache_1h_tokens   INTEGER NOT NULL,
                 cost_usd          REAL NOT NULL,
                 service_tier      TEXT,
-                speed             TEXT
+                speed             TEXT,
+                web_search_requests INTEGER NOT NULL DEFAULT 0,
+                web_fetch_requests  INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_usage_ts      ON usage(ts);
             CREATE INDEX IF NOT EXISTS idx_usage_model   ON usage(model);
@@ -56,6 +63,8 @@ impl Store {
             CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
             "#,
         )?;
+        let _ = conn.execute_batch("ALTER TABLE usage ADD COLUMN web_search_requests INTEGER NOT NULL DEFAULT 0");
+        let _ = conn.execute_batch("ALTER TABLE usage ADD COLUMN web_fetch_requests INTEGER NOT NULL DEFAULT 0");
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -75,10 +84,15 @@ impl Store {
                 "INSERT INTO usage \
                  (message_id, session_id, project_path, ts, model, \
                   input_tokens, output_tokens, cache_read_tokens, cache_5m_tokens, cache_1h_tokens, \
-                  cost_usd, service_tier, speed) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) \
-                 ON CONFLICT(message_id) DO UPDATE SET cost_usd = excluded.cost_usd \
-                 WHERE usage.cost_usd IS NOT excluded.cost_usd",
+                  cost_usd, service_tier, speed, web_search_requests, web_fetch_requests) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) \
+                 ON CONFLICT(message_id) DO UPDATE SET \
+                   cost_usd = excluded.cost_usd, \
+                   web_search_requests = excluded.web_search_requests, \
+                   web_fetch_requests = excluded.web_fetch_requests \
+                 WHERE usage.cost_usd IS NOT excluded.cost_usd \
+                    OR usage.web_search_requests != excluded.web_search_requests \
+                    OR usage.web_fetch_requests != excluded.web_fetch_requests",
             )?;
             for r in records {
                 let inserted = stmt.execute(params![
@@ -95,6 +109,8 @@ impl Store {
                     r.cost_usd,
                     r.service_tier,
                     r.speed,
+                    r.web_search_requests as i64,
+                    r.web_fetch_requests as i64,
                 ])?;
                 touched_rows += inserted;
             }
@@ -287,7 +303,8 @@ impl Store {
         let mut sql = String::from(
             "SELECT session_id, project_path, MIN(ts), MAX(ts), SUM(cost_usd), COUNT(*), \
              SUM(cache_read_tokens), SUM(input_tokens), \
-             MAX(input_tokens + cache_read_tokens + cache_5m_tokens + cache_1h_tokens) \
+             MAX(input_tokens + cache_read_tokens + cache_5m_tokens + cache_1h_tokens), \
+             COALESCE(SUM(web_search_requests), 0), COALESCE(SUM(web_fetch_requests), 0) \
              FROM usage",
         );
         let mut params_owned: Vec<String> = Vec::new();
@@ -312,6 +329,8 @@ impl Store {
                     cache_read_tokens: r.get::<_, i64>(6)? as u64,
                     input_tokens: r.get::<_, i64>(7)? as u64,
                     peak_context_tokens: r.get::<_, i64>(8)? as u64,
+                    web_search_requests: r.get::<_, i64>(9)? as u32,
+                    web_fetch_requests: r.get::<_, i64>(10)? as u32,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -424,6 +443,114 @@ impl Store {
             )?,
         };
         Ok(cost)
+    }
+
+    pub fn file_needs_scan(&self, path: &str, mtime_secs: u64, file_size: u64) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let result: Option<(u64, u64)> = conn
+            .query_row(
+                "SELECT mtime_secs, file_size FROM file_cache WHERE path = ?1",
+                params![path],
+                |r| Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64)),
+            )
+            .optional()?;
+        Ok(match result {
+            None => true,
+            Some((m, s)) => m != mtime_secs || s != file_size,
+        })
+    }
+
+    pub fn update_file_cache(&self, path: &str, mtime_secs: u64, file_size: u64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO file_cache (path, mtime_secs, file_size) VALUES (?1, ?2, ?3) \
+             ON CONFLICT(path) DO UPDATE SET mtime_secs = excluded.mtime_secs, file_size = excluded.file_size",
+            params![path, mtime_secs as i64, file_size as i64],
+        )?;
+        Ok(())
+    }
+
+    pub fn by_weekday(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByWeekday>> {
+        let conn = self.conn.lock().unwrap();
+        let (clause, p1, p2) = range_clause(since, until);
+        let sql = format!(
+            "SELECT CAST(strftime('%w', ts) AS INTEGER) AS dow, SUM(cost_usd), COUNT(*) \
+             FROM usage{clause} GROUP BY dow ORDER BY dow"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let raw = stmt
+            .query_map(rusqlite::params_from_iter(opt_params(&p1, &p2)), |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, f64>(1)?, r.get::<_, i64>(2)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let labels = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+        let mut result: Vec<ByWeekday> = (0u8..7)
+            .map(|i| ByWeekday { weekday: i, label: labels[i as usize].to_string(), cost_usd: 0.0, calls: 0 })
+            .collect();
+        for (dow_sqlite, cost, calls) in raw {
+            let iso = ((dow_sqlite + 6) % 7) as usize;
+            result[iso].cost_usd = cost;
+            result[iso].calls = calls as u64;
+        }
+        Ok(result)
+    }
+
+    pub fn by_hourofday(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByHourOfDay>> {
+        let conn = self.conn.lock().unwrap();
+        let (clause, p1, p2) = range_clause(since, until);
+        let sql = format!(
+            "SELECT CAST(strftime('%H', ts) AS INTEGER) AS h, SUM(cost_usd), COUNT(*) \
+             FROM usage{clause} GROUP BY h ORDER BY h"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let raw = stmt
+            .query_map(rusqlite::params_from_iter(opt_params(&p1, &p2)), |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, f64>(1)?, r.get::<_, i64>(2)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut result: Vec<ByHourOfDay> = (0u8..24)
+            .map(|h| ByHourOfDay { hour: h, cost_usd: 0.0, calls: 0 })
+            .collect();
+        for (h, cost, calls) in raw {
+            result[h as usize].cost_usd = cost;
+            result[h as usize].calls = calls as u64;
+        }
+        Ok(result)
+    }
+
+    pub fn all_usage_for_export(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ExportRow>> {
+        let conn = self.conn.lock().unwrap();
+        let (clause, p1, p2) = range_clause(since, until);
+        let sql = format!(
+            "SELECT message_id, session_id, project_path, ts, model, \
+                    input_tokens, output_tokens, cache_read_tokens, cache_5m_tokens, cache_1h_tokens, \
+                    cost_usd, COALESCE(service_tier,''), COALESCE(speed,''), \
+                    COALESCE(web_search_requests,0), COALESCE(web_fetch_requests,0) \
+             FROM usage{clause} ORDER BY ts"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(opt_params(&p1, &p2)), |r| {
+                Ok(ExportRow {
+                    message_id:           r.get(0)?,
+                    session_id:           r.get(1)?,
+                    project_path:         r.get(2)?,
+                    ts:                   r.get(3)?,
+                    model:                r.get(4)?,
+                    input_tokens:         r.get::<_, i64>(5)? as u64,
+                    output_tokens:        r.get::<_, i64>(6)? as u64,
+                    cache_read_tokens:    r.get::<_, i64>(7)? as u64,
+                    cache_5m_tokens:      r.get::<_, i64>(8)? as u64,
+                    cache_1h_tokens:      r.get::<_, i64>(9)? as u64,
+                    cost_usd:             r.get(10)?,
+                    service_tier:         r.get(11)?,
+                    speed:                r.get(12)?,
+                    web_search_requests:  r.get::<_, i64>(13)? as u32,
+                    web_fetch_requests:   r.get::<_, i64>(14)? as u32,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
     }
 
     pub fn last_timestamp(&self) -> Result<Option<String>> {
@@ -565,6 +692,40 @@ pub struct Alert {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ByWeekday {
+    pub weekday: u8,
+    pub label: String,
+    pub cost_usd: f64,
+    pub calls: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ByHourOfDay {
+    pub hour: u8,
+    pub cost_usd: f64,
+    pub calls: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportRow {
+    pub message_id: String,
+    pub session_id: String,
+    pub project_path: String,
+    pub ts: String,
+    pub model: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_5m_tokens: u64,
+    pub cache_1h_tokens: u64,
+    pub cost_usd: f64,
+    pub service_tier: String,
+    pub speed: String,
+    pub web_search_requests: u32,
+    pub web_fetch_requests: u32,
+}
+
+#[derive(Debug, Serialize)]
 pub struct BySession {
     pub session_id: String,
     pub project_path: String,
@@ -575,4 +736,6 @@ pub struct BySession {
     pub cache_read_tokens: u64,
     pub input_tokens: u64,
     pub peak_context_tokens: u64,
+    pub web_search_requests: u32,
+    pub web_fetch_requests: u32,
 }
