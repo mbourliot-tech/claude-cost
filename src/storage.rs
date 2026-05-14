@@ -553,6 +553,48 @@ impl Store {
         Ok(rows)
     }
 
+    pub fn waste_stats(&self) -> Result<WasteStats> {
+        let conn = self.conn.lock().unwrap();
+        let (wasted_sessions, wasted_cost_usd): (i64, f64) = conn.query_row(
+            "SELECT COUNT(*), COALESCE(SUM(s_cost), 0.0) FROM (
+               SELECT session_id,
+                      SUM(cost_usd) AS s_cost,
+                      SUM(cache_5m_tokens + cache_1h_tokens) AS writes,
+                      SUM(cache_read_tokens) AS reads,
+                      COUNT(*) AS calls
+               FROM usage
+               GROUP BY session_id
+               HAVING writes > 0 AND reads = 0 AND calls <= 5
+             )",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let sessions_near_limit: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM (
+               SELECT session_id,
+                      MAX(input_tokens + cache_read_tokens + cache_5m_tokens + cache_1h_tokens) AS peak
+               FROM usage GROUP BY session_id HAVING peak > 150000
+             )",
+            [],
+            |r| r.get(0),
+        )?;
+        let (cache_read_tokens, input_tokens): (i64, i64) = conn.query_row(
+            "SELECT COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(input_tokens),0) FROM usage",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let hit_rate = {
+            let total = cache_read_tokens + input_tokens;
+            if total > 0 { cache_read_tokens as f64 / total as f64 } else { 0.0 }
+        };
+        Ok(WasteStats {
+            wasted_sessions: wasted_sessions as u64,
+            wasted_cost_usd,
+            sessions_near_limit: sessions_near_limit as u64,
+            alltime_hit_rate: hit_rate,
+        })
+    }
+
     pub fn last_timestamp(&self) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         let ts: Option<String> = conn
@@ -679,6 +721,14 @@ pub struct ModelPriceOverride {
     pub input_per_mtok: f64,
     pub output_per_mtok: f64,
     pub cache_read_per_mtok: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WasteStats {
+    pub wasted_sessions: u64,
+    pub wasted_cost_usd: f64,
+    pub sessions_near_limit: u64,
+    pub alltime_hit_rate: f64,
 }
 
 #[derive(Debug, Serialize, Clone)]

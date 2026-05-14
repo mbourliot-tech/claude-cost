@@ -112,6 +112,7 @@
     <button class="tab-btn active" data-tab="overview" data-i18n="tab.overview">Vue d'ensemble</button>
     <button class="tab-btn" data-tab="sessions" data-i18n="tab.sessions">Sessions</button>
     <button class="tab-btn" data-tab="plans" data-i18n="tab.plans">Plans</button>
+    <button class="tab-btn" data-tab="insights" data-i18n="tab.insights">Optimisation</button>
     <button class="tab-btn" data-tab="alertes">
       <span data-i18n="tab.alerts">Alertes</span>
       <span id="alert-tab-badge" class="badge-count hidden">0</span>
@@ -262,7 +263,20 @@
     </section>
   </div>
 
-  <!-- Onglet 4 : Alertes -->
+  <!-- Onglet 4 : Optimisation -->
+  <div class="tab-section" id="tab-insights">
+    <section class="grid">
+      <div class="card wide">
+        <div class="card-header">
+          <h2 data-i18n="insights.title">Réduction des coûts</h2>
+          <span id="insights-summary" class="insights-summary"></span>
+        </div>
+        <div id="insights-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Onglet 5 : Alertes -->
   <div class="tab-section" id="tab-alertes">
     <section class="grid">
       <div class="card wide" id="card-alerts">

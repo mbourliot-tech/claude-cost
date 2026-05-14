@@ -331,6 +331,30 @@ canvas { max-height: 280px; }
   vertical-align: middle;
 }
 
+/* Insights / optimisation */
+.insights-summary { font-size: 12px; color: var(--muted); }
+.insight-card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.insight-card.high     { border-color: rgba(255,85,114,0.4);  background: rgba(255,85,114,0.06); }
+.insight-card.medium   { border-color: rgba(255,184,107,0.4); background: rgba(255,184,107,0.06); }
+.insight-card.good     { border-color: rgba(94,224,138,0.4);  background: rgba(94,224,138,0.06); }
+.insight-card.info     { border-color: rgba(107,209,255,0.35); background: rgba(107,209,255,0.05); }
+.insight-icon  { font-size: 22px; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+.insight-body  { flex: 1; }
+.insight-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.insight-desc  { font-size: 13px; color: var(--muted); margin-bottom: 6px; line-height: 1.5; }
+.insight-action { font-size: 12px; color: var(--accent-2); font-style: italic; }
+.insight-savings { text-align: right; flex-shrink: 0; min-width: 90px; }
+.insight-savings .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.insight-savings .amount { font-size: 18px; font-weight: 700; color: var(--good); display: block; }
+
 /* Alert banner */
 .alert-banner {
   display: flex;

@@ -37,6 +37,29 @@ const TRANSLATIONS = {
     'btn.save': "Sauvegarder", 'btn.reset': "Réinitialiser", 'badge.custom': "Personnalisé", 'badge.unknown': "Inconnu",
     'theme.dark': "🌙 Sombre", 'theme.light': "☀️ Clair", 'theme.midnight': "🌌 Minuit",
     'global': "global", 'week': "cette semaine", 'month_period': "ce mois",
+    'tab.insights': "Optimisation",
+    'insights.title': "Réduction des coûts",
+    'insights.avoidable': "Économie potentielle estimée",
+    'insights.none': "✅ Aucune optimisation majeure détectée — votre utilisation est efficace.",
+    'insights.cache.good.title': "Excellent taux de cache",
+    'insights.cache.good.desc': "Votre taux de cache ({rate}%) est optimal. Le contexte est bien réutilisé entre les appels.",
+    'insights.cache.med.title': "Taux de cache perfectible",
+    'insights.cache.med.desc': "Votre taux de cache est de {rate}%. Un CLAUDE.md structuré avec vos instructions permanentes en début de conversation peut le porter à 80%+.",
+    'insights.cache.low.title': "Taux de cache faible — action recommandée",
+    'insights.cache.low.desc': "Seulement {rate}% des tokens d'entrée sont lus depuis le cache. Chaque conversation recrée le contexte depuis zéro.",
+    'insights.cache.action': "Placez vos instructions système et le contexte projet dans un CLAUDE.md. Claude mettra automatiquement ce bloc en cache dès le 2ème appel.",
+    'insights.waste.title': "Sessions courtes sans réutilisation du cache",
+    'insights.waste.desc': "{n} session(s) ont écrit dans le cache ({cost}) sans jamais le relire (≤5 appels). Le coût d'écriture du cache est perdu.",
+    'insights.waste.action': "Regroupez vos questions en une session plus longue, ou utilisez /clear entre les sujets distincts pour ne pas écrire de cache inutilement.",
+    'insights.model.title': "Opus représente une grande part du coût",
+    'insights.model.desc': "claude-opus coûte $5/Mtok en input contre $3 pour Sonnet (1,7× plus cher). Opus représente {pct}% de votre dépense totale.",
+    'insights.model.action': "Réservez Opus aux tâches complexes (architecture, débogage difficile). Utilisez Sonnet pour l'explication de code, le refactoring simple et la génération de tests.",
+    'insights.ctx.title': "Plusieurs sessions proches de la limite de contexte",
+    'insights.ctx.desc': "{n} session(s) ont dépassé 150 000 tokens de contexte. Au-delà de 200K, Claude ne peut plus traiter la demande et le cache doit être recréé.",
+    'insights.ctx.action': "Utilisez /compact régulièrement dans les longues sessions pour résumer le contexte et réduire la taille de la fenêtre.",
+    'insights.plan.title': "L'abonnement Pro réduirait vos coûts",
+    'insights.plan.desc': "Votre dépense API moyenne sur les derniers mois complets est de {avg}/mois. L'abonnement Pro à $20/mois vous économiserait {save}/mois.",
+    'insights.plan.action': "Passez au plan Pro sur claude.ai. Si votre rythme mensuel dépasse $100, envisagez Max 5×.",
   },
   en: {
     'tab.overview': "Overview", 'tab.sessions': "Sessions", 'tab.plans': "Plans", 'tab.alerts': "Alerts",
@@ -74,6 +97,29 @@ const TRANSLATIONS = {
     'btn.save': "Save", 'btn.reset': "Reset", 'badge.custom': "Custom", 'badge.unknown': "Unknown",
     'theme.dark': "🌙 Dark", 'theme.light': "☀️ Light", 'theme.midnight': "🌌 Midnight",
     'global': "global", 'week': "this week", 'month_period': "this month",
+    'tab.insights': "Insights",
+    'insights.title': "Cost reduction",
+    'insights.avoidable': "Estimated potential savings",
+    'insights.none': "✅ No major optimizations found — your usage is efficient.",
+    'insights.cache.good.title': "Excellent cache hit rate",
+    'insights.cache.good.desc': "Your cache hit rate ({rate}%) is optimal. Context is well reused across calls.",
+    'insights.cache.med.title': "Cache hit rate could improve",
+    'insights.cache.med.desc': "Your cache hit rate is {rate}%. A structured CLAUDE.md with your permanent instructions at the start of conversations can bring it to 80%+.",
+    'insights.cache.low.title': "Low cache hit rate — action recommended",
+    'insights.cache.low.desc': "Only {rate}% of input tokens are read from cache. Each conversation recreates context from scratch.",
+    'insights.cache.action': "Place your system instructions and project context in a CLAUDE.md file. Claude will automatically cache this block from the 2nd call onwards.",
+    'insights.waste.title': "Short sessions with wasted cache",
+    'insights.waste.desc': "{n} session(s) wrote to cache ({cost}) without ever reading from it (≤5 calls). Cache write cost was lost.",
+    'insights.waste.action': "Group your questions into longer sessions, or use /clear between unrelated topics to avoid writing useless cache.",
+    'insights.model.title': "Opus represents a large share of costs",
+    'insights.model.desc': "claude-opus costs $5/Mtok input vs $3 for Sonnet (1.7× more expensive). Opus accounts for {pct}% of your total spend.",
+    'insights.model.action': "Reserve Opus for complex tasks (architecture, hard debugging). Use Sonnet for code explanation, simple refactoring and test generation.",
+    'insights.ctx.title': "Several sessions near context limit",
+    'insights.ctx.desc': "{n} session(s) exceeded 150,000 context tokens. Above 200K, Claude can no longer process requests and cache must be rebuilt.",
+    'insights.ctx.action': "Use /compact regularly in long sessions to summarize context and reduce the window size.",
+    'insights.plan.title': "Pro subscription would reduce your costs",
+    'insights.plan.desc': "Your average API spend over recent complete months is {avg}/month. The Pro plan at $20/month would save you {save}/month.",
+    'insights.plan.action': "Switch to the Pro plan on claude.ai. If your monthly spend regularly exceeds $100, consider Max 5×.",
   },
 };
 
@@ -239,6 +285,7 @@ async function refresh() {
   renderModelWarnings(modelPrices);
   refreshAlerts().catch(() => {});
   refreshPlans().catch(() => {});
+  refreshInsights().catch(() => {});
 
   $("#kpi-cost").textContent = fmtUsd(summary.total_cost_usd);
   $("#kpi-calls").textContent = fmtNum(summary.calls);
@@ -485,6 +532,121 @@ refresh().then(async () => {
   $("#footer-meta").textContent = "Erreur: " + e.message;
 });
 
+// ── Optimisation / Insights ───────────────────────────────────────────────────
+
+async function refreshInsights() {
+  const [wasteStats, allModels, allSummary, monthData] = await Promise.all([
+    jget("/api/waste-stats"),
+    jget("/api/by-model"),
+    jget("/api/summary"),
+    jget("/api/by-month?months=6"),
+  ]);
+  renderInsights(wasteStats, allModels, allSummary, monthData);
+}
+
+function renderInsights(waste, byModel, summary, months) {
+  const list = $("#insights-list");
+  const cards = [];
+  let totalAvoidable = 0;
+
+  // ── R1 : Cache hit rate ─────────────────────────────────────────────────────
+  const rate = waste.alltime_hit_rate;
+  const ratePct = (rate * 100).toFixed(1);
+  if (rate >= 0.75) {
+    cards.push({ sev: "good", icon: "✅", title: t('insights.cache.good.title'),
+      desc: t('insights.cache.good.desc').replace("{rate}", ratePct), action: null, savings: null });
+  } else {
+    // Estimated savings: if we reach 80% hit rate, the delta in cost would be...
+    // savings ≈ total_cost × (target - actual) × cache_discount (cache is ~10% of input)
+    const savings = summary.total_cost_usd * (0.80 - rate) * 0.45;
+    totalAvoidable += Math.max(0, savings);
+    const sev = rate < 0.5 ? "high" : "medium";
+    const key = rate < 0.5 ? 'insights.cache.low' : 'insights.cache.med';
+    cards.push({ sev, icon: sev === "high" ? "🔴" : "🟡",
+      title: t(key + '.title'),
+      desc: t(key + '.desc').replace("{rate}", ratePct),
+      action: t('insights.cache.action'),
+      savings: Math.max(0, savings) });
+  }
+
+  // ── R2 : Sessions courtes gaspillées ────────────────────────────────────────
+  if (waste.wasted_sessions > 0) {
+    totalAvoidable += waste.wasted_cost_usd;
+    cards.push({ sev: "medium", icon: "🟡",
+      title: t('insights.waste.title'),
+      desc: t('insights.waste.desc').replace("{n}", waste.wasted_sessions).replace("{cost}", fmtUsd(waste.wasted_cost_usd)),
+      action: t('insights.waste.action'),
+      savings: waste.wasted_cost_usd });
+  }
+
+  // ── R3 : Mix modèles Opus ───────────────────────────────────────────────────
+  const opusCost = byModel.filter((m) => m.model.toLowerCase().includes("opus")).reduce((s, m) => s + m.cost_usd, 0);
+  const opusFraction = summary.total_cost_usd > 0 ? opusCost / summary.total_cost_usd : 0;
+  if (opusFraction > 0.25) {
+    const savings = opusCost * 0.5 * (1 - 3 / 5); // 50% des appels Opus → Sonnet
+    totalAvoidable += savings;
+    cards.push({ sev: "medium", icon: "🟡",
+      title: t('insights.model.title'),
+      desc: t('insights.model.desc').replace("{pct}", (opusFraction * 100).toFixed(0)),
+      action: t('insights.model.action'),
+      savings });
+  }
+
+  // ── R4 : Contexte proche limite ─────────────────────────────────────────────
+  if (waste.sessions_near_limit > 0) {
+    cards.push({ sev: "info", icon: "ℹ️",
+      title: t('insights.ctx.title'),
+      desc: t('insights.ctx.desc').replace("{n}", waste.sessions_near_limit),
+      action: t('insights.ctx.action'),
+      savings: null });
+  }
+
+  // ── R5 : Plan abonnement ────────────────────────────────────────────────────
+  const current = currentYearMonth();
+  const complete = months.filter((m) => m.month !== current);
+  if (complete.length >= 2) {
+    const avgMonthly = complete.reduce((s, m) => s + m.cost_usd, 0) / complete.length;
+    if (avgMonthly > 20) {
+      const save = avgMonthly - 20;
+      totalAvoidable += save;
+      cards.push({ sev: "info", icon: "💡",
+        title: t('insights.plan.title'),
+        desc: t('insights.plan.desc').replace("{avg}", fmtUsd(avgMonthly)).replace("{save}", fmtUsd(save)),
+        action: t('insights.plan.action'),
+        savings: save });
+    }
+  }
+
+  // ── Rendu ────────────────────────────────────────────────────────────────────
+  const summaryEl = $("#insights-summary");
+  if (totalAvoidable > 0.5) {
+    summaryEl.textContent = `${t('insights.avoidable')} : ${fmtUsd(totalAvoidable)}/mois`;
+    summaryEl.style.color = "var(--warn)";
+  } else {
+    summaryEl.textContent = "";
+  }
+
+  if (cards.length === 0) {
+    list.innerHTML = `<p style="color:var(--muted);padding:12px 0">${t('insights.none')}</p>`;
+    return;
+  }
+
+  list.innerHTML = cards.map((c) => `
+    <div class="insight-card ${c.sev}">
+      <div class="insight-icon">${c.icon}</div>
+      <div class="insight-body">
+        <div class="insight-title">${escapeHtml(c.title)}</div>
+        <div class="insight-desc">${escapeHtml(c.desc)}</div>
+        ${c.action ? `<div class="insight-action">→ ${escapeHtml(c.action)}</div>` : ""}
+      </div>
+      ${c.savings != null && c.savings > 0.1 ? `
+        <div class="insight-savings">
+          <span class="label">${t('insights.avoidable')}</span>
+          <span class="amount">${fmtUsd(c.savings)}/mois</span>
+        </div>` : ""}
+    </div>`).join("");
+}
+
 // ── Sessions : contrôles filtre/limite ───────────────────────────────────────
 
 async function refreshSessions() {
@@ -533,6 +695,7 @@ document.getElementById("theme-select").value = currentTheme;
 
 document.getElementById("lang-select").addEventListener("change", (e) => {
   applyLang(e.target.value);
+  refreshInsights().catch(() => {});
   refresh().catch(() => {});
 });
 

@@ -41,6 +41,7 @@ pub fn router(store: Arc<Store>, projects_dir: PathBuf) -> Router {
         .route("/api/by-hour", get(api_by_hour))
         .route("/api/model-prices", get(api_model_prices))
         .route("/api/model-prices/{model}", put(api_put_model_price).delete(api_delete_model_price))
+        .route("/api/waste-stats", get(api_waste_stats))
         .route("/api/by-month", get(api_by_month))
         .route("/api/by-weekday", get(api_by_weekday))
         .route("/api/by-hourofday", get(api_by_hourofday))
@@ -252,6 +253,11 @@ async fn api_delete_model_price(
 async fn api_last_timestamp(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiErr> {
     let ts = s.store.last_timestamp()?;
     Ok(Json(json!({ "last_timestamp": ts })))
+}
+
+async fn api_waste_stats(State(s): State<AppState>) -> Result<Json<serde_json::Value>, ApiErr> {
+    let stats = s.store.waste_stats()?;
+    Ok(Json(serde_json::to_value(stats)?))
 }
 
 async fn api_by_weekday(State(s): State<AppState>, Query(r): Query<Range>) -> Result<Json<serde_json::Value>, ApiErr> {
