@@ -26,6 +26,10 @@ pub fn scan_all(projects_dir: &Path, store: &Store) -> Result<ScanReport> {
 
     let overrides = store.price_overrides_map()?;
     let mut seen_ids: HashSet<String> = HashSet::new();
+
+    // Collect all JSONL paths for the estimate pass (done independently of file cache).
+    let mut all_jsonl: Vec<std::path::PathBuf> = Vec::new();
+
     for entry in WalkDir::new(projects_dir).into_iter().filter_map(|e| e.ok()) {
         if !entry.file_type().is_file() {
             continue;
@@ -34,6 +38,7 @@ pub fn scan_all(projects_dir: &Path, store: &Store) -> Result<ScanReport> {
         if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
             continue;
         }
+        all_jsonl.push(path.to_path_buf());
 
         // Scan incrémental : ne relit que les fichiers modifiés
         let meta = match entry.metadata() {
@@ -70,6 +75,21 @@ pub fn scan_all(projects_dir: &Path, store: &Store) -> Result<ScanReport> {
             }
         }
     }
+
+    // Second pass: compute internal-call estimates for every JSONL file regardless of
+    // cache status. parse_internal_estimates is fast (away_summary entries are rare) and
+    // insert_batch is idempotent (ON CONFLICT skips unchanged rows), so re-running on
+    // cached files is safe and ensures estimates are populated even for historical data.
+    let mut est_seen: HashSet<String> = HashSet::new();
+    for path in &all_jsonl {
+        match parser::parse_internal_estimates(path, &mut est_seen, &overrides) {
+            Ok(estimates) if !estimates.is_empty() => {
+                let _ = store.insert_batch(&estimates);
+            }
+            _ => {}
+        }
+    }
+
     report.elapsed_ms = started.elapsed().as_millis();
     Ok(report)
 }

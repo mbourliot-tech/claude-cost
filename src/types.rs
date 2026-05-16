@@ -18,6 +18,7 @@ pub struct UsageRecord {
     pub speed: Option<String>,
     pub web_search_requests: u32,
     pub web_fetch_requests: u32,
+    pub is_estimate: bool,
 }
 
 /// Raw `message.usage` payload as emitted by Claude. Tolerant deserialization:

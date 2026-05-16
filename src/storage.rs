@@ -55,7 +55,8 @@ impl Store {
                 service_tier      TEXT,
                 speed             TEXT,
                 web_search_requests INTEGER NOT NULL DEFAULT 0,
-                web_fetch_requests  INTEGER NOT NULL DEFAULT 0
+                web_fetch_requests  INTEGER NOT NULL DEFAULT 0,
+                is_estimate         INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_usage_ts      ON usage(ts);
             CREATE INDEX IF NOT EXISTS idx_usage_model   ON usage(model);
@@ -65,16 +66,20 @@ impl Store {
         )?;
         let _ = conn.execute_batch("ALTER TABLE usage ADD COLUMN web_search_requests INTEGER NOT NULL DEFAULT 0");
         let _ = conn.execute_batch("ALTER TABLE usage ADD COLUMN web_fetch_requests INTEGER NOT NULL DEFAULT 0");
+        let _ = conn.execute_batch("ALTER TABLE usage ADD COLUMN is_estimate INTEGER NOT NULL DEFAULT 0");
+        // Purge stale estimate records using <synthetic> model (stored before the fix).
+        let _ = conn.execute("DELETE FROM usage WHERE is_estimate = 1 AND model = '<synthetic>'", []);
         Ok(Self { conn: Mutex::new(conn) })
     }
 
-    /// Insert a batch. Each row is identified by `message_id`. On conflict the
-    /// `cost_usd` is refreshed only when it actually changes — this lets the
-    /// scanner re-price old rows after `pricing.rs` is updated (e.g. when a new
-    /// model is added or a tier is adjusted) without losing idempotence: a
-    /// rescan with unchanged prices touches zero rows.
+    /// Insert a batch. Each row is identified by `message_id`. On conflict all
+    /// mutable fields are refreshed when any of them actually changes — this lets
+    /// the scanner correct rows that were initially stored with partial streaming
+    /// token counts (which get finalized in a later occurrence of the same id),
+    /// and also lets re-pricing after `pricing.rs` updates take effect without
+    /// touching rows whose data is already up-to-date (idempotence preserved).
     ///
-    /// Returns the number of rows inserted OR repriced.
+    /// Returns the number of rows inserted OR updated.
     pub fn insert_batch(&self, records: &[UsageRecord]) -> Result<usize> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
@@ -84,15 +89,29 @@ impl Store {
                 "INSERT INTO usage \
                  (message_id, session_id, project_path, ts, model, \
                   input_tokens, output_tokens, cache_read_tokens, cache_5m_tokens, cache_1h_tokens, \
-                  cost_usd, service_tier, speed, web_search_requests, web_fetch_requests) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) \
+                  cost_usd, service_tier, speed, web_search_requests, web_fetch_requests, is_estimate) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) \
                  ON CONFLICT(message_id) DO UPDATE SET \
-                   cost_usd = excluded.cost_usd, \
+                   model               = excluded.model, \
+                   input_tokens        = excluded.input_tokens, \
+                   output_tokens       = excluded.output_tokens, \
+                   cache_read_tokens   = excluded.cache_read_tokens, \
+                   cache_5m_tokens     = excluded.cache_5m_tokens, \
+                   cache_1h_tokens     = excluded.cache_1h_tokens, \
+                   cost_usd            = excluded.cost_usd, \
                    web_search_requests = excluded.web_search_requests, \
-                   web_fetch_requests = excluded.web_fetch_requests \
+                   web_fetch_requests  = excluded.web_fetch_requests, \
+                   is_estimate         = excluded.is_estimate \
                  WHERE usage.cost_usd IS NOT excluded.cost_usd \
+                    OR usage.model           != excluded.model \
+                    OR usage.output_tokens    != excluded.output_tokens \
+                    OR usage.input_tokens     != excluded.input_tokens \
+                    OR usage.cache_read_tokens != excluded.cache_read_tokens \
+                    OR usage.cache_5m_tokens  != excluded.cache_5m_tokens \
+                    OR usage.cache_1h_tokens  != excluded.cache_1h_tokens \
                     OR usage.web_search_requests != excluded.web_search_requests \
-                    OR usage.web_fetch_requests != excluded.web_fetch_requests",
+                    OR usage.web_fetch_requests  != excluded.web_fetch_requests \
+                    OR usage.is_estimate != excluded.is_estimate",
             )?;
             for r in records {
                 let inserted = stmt.execute(params![
@@ -111,6 +130,7 @@ impl Store {
                     r.speed,
                     r.web_search_requests as i64,
                     r.web_fetch_requests as i64,
+                    r.is_estimate as i64,
                 ])?;
                 touched_rows += inserted;
             }
@@ -176,9 +196,9 @@ impl Store {
         Ok(rows)
     }
 
-    pub fn summary(&self, since: Option<&str>, until: Option<&str>) -> Result<Summary> {
+    pub fn summary(&self, since: Option<&str>, until: Option<&str>, include_estimates: bool) -> Result<Summary> {
         let conn = self.conn.lock().unwrap();
-        let (clause, p1, p2) = range_clause(since, until);
+        let (clause, p1, p2) = range_clause(since, until, include_estimates);
         let sql = format!(
             "SELECT COALESCE(SUM(cost_usd),0), \
                     COALESCE(SUM(input_tokens),0), \
@@ -205,9 +225,9 @@ impl Store {
         Ok(row)
     }
 
-    pub fn by_model(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByModel>> {
+    pub fn by_model(&self, since: Option<&str>, until: Option<&str>, include_estimates: bool) -> Result<Vec<ByModel>> {
         let conn = self.conn.lock().unwrap();
-        let (clause, p1, p2) = range_clause(since, until);
+        let (clause, p1, p2) = range_clause(since, until, include_estimates);
         let sql = format!(
             "SELECT model, \
                     SUM(cost_usd), \
@@ -279,7 +299,7 @@ impl Store {
 
     pub fn by_project(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByProject>> {
         let conn = self.conn.lock().unwrap();
-        let (clause, p1, p2) = range_clause(since, until);
+        let (clause, p1, p2) = range_clause(since, until, false);
         let sql = format!(
             "SELECT project_path, SUM(cost_usd), COUNT(DISTINCT session_id), COUNT(*) \
              FROM usage{clause} GROUP BY project_path ORDER BY SUM(cost_usd) DESC"
@@ -337,9 +357,9 @@ impl Store {
         Ok(rows)
     }
 
-    pub fn by_hour(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByHour>> {
+    pub fn by_hour(&self, since: Option<&str>, until: Option<&str>, include_estimates: bool) -> Result<Vec<ByHour>> {
         let conn = self.conn.lock().unwrap();
-        let (clause, p1, p2) = range_clause(since, until);
+        let (clause, p1, p2) = range_clause(since, until, include_estimates);
         let sql = format!(
             "SELECT substr(ts, 1, 13) AS h, SUM(cost_usd), \
                     SUM(input_tokens), SUM(output_tokens), SUM(cache_read_tokens) \
@@ -472,7 +492,7 @@ impl Store {
 
     pub fn by_weekday(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByWeekday>> {
         let conn = self.conn.lock().unwrap();
-        let (clause, p1, p2) = range_clause(since, until);
+        let (clause, p1, p2) = range_clause(since, until, false);
         let sql = format!(
             "SELECT CAST(strftime('%w', ts) AS INTEGER) AS dow, SUM(cost_usd), COUNT(*) \
              FROM usage{clause} GROUP BY dow ORDER BY dow"
@@ -497,7 +517,7 @@ impl Store {
 
     pub fn by_hourofday(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ByHourOfDay>> {
         let conn = self.conn.lock().unwrap();
-        let (clause, p1, p2) = range_clause(since, until);
+        let (clause, p1, p2) = range_clause(since, until, false);
         let sql = format!(
             "SELECT CAST(strftime('%H', ts) AS INTEGER) AS h, SUM(cost_usd), COUNT(*) \
              FROM usage{clause} GROUP BY h ORDER BY h"
@@ -520,7 +540,7 @@ impl Store {
 
     pub fn all_usage_for_export(&self, since: Option<&str>, until: Option<&str>) -> Result<Vec<ExportRow>> {
         let conn = self.conn.lock().unwrap();
-        let (clause, p1, p2) = range_clause(since, until);
+        let (clause, p1, p2) = range_clause(since, until, false);
         let sql = format!(
             "SELECT message_id, session_id, project_path, ts, model, \
                     input_tokens, output_tokens, cache_read_tokens, cache_5m_tokens, cache_1h_tokens, \
@@ -562,7 +582,7 @@ impl Store {
                       SUM(cache_5m_tokens + cache_1h_tokens) AS writes,
                       SUM(cache_read_tokens) AS reads,
                       COUNT(*) AS calls
-               FROM usage
+               FROM usage WHERE is_estimate = 0
                GROUP BY session_id
                HAVING writes > 0 AND reads = 0 AND calls <= 5
              )",
@@ -573,13 +593,13 @@ impl Store {
             "SELECT COUNT(*) FROM (
                SELECT session_id,
                       MAX(input_tokens + cache_read_tokens + cache_5m_tokens + cache_1h_tokens) AS peak
-               FROM usage GROUP BY session_id HAVING peak > 150000
+               FROM usage WHERE is_estimate = 0 GROUP BY session_id HAVING peak > 150000
              )",
             [],
             |r| r.get(0),
         )?;
         let (cache_read_tokens, input_tokens): (i64, i64) = conn.query_row(
-            "SELECT COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(input_tokens),0) FROM usage",
+            "SELECT COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(input_tokens),0) FROM usage WHERE is_estimate = 0",
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
@@ -623,12 +643,14 @@ fn row_to_recent_call(r: &rusqlite::Row) -> rusqlite::Result<RecentCall> {
     })
 }
 
-fn range_clause(since: Option<&str>, until: Option<&str>) -> (String, Option<String>, Option<String>) {
+fn range_clause(since: Option<&str>, until: Option<&str>, include_estimates: bool) -> (String, Option<String>, Option<String>) {
+    let ef = if include_estimates { "" } else { " AND is_estimate = 0" };
     match (since, until) {
-        (Some(a), Some(b)) => (" WHERE ts >= ?1 AND ts <= ?2".into(), Some(a.into()), Some(b.into())),
-        (Some(a), None) => (" WHERE ts >= ?1".into(), Some(a.into()), None),
-        (None, Some(b)) => (" WHERE ts <= ?1".into(), Some(b.into()), None),
-        (None, None) => (String::new(), None, None),
+        (Some(a), Some(b)) => (format!(" WHERE ts >= ?1 AND ts <= ?2{ef}"), Some(a.into()), Some(b.into())),
+        (Some(a), None)    => (format!(" WHERE ts >= ?1{ef}"), Some(a.into()), None),
+        (None, Some(b))    => (format!(" WHERE ts <= ?1{ef}"), Some(b.into()), None),
+        (None, None) if !include_estimates => (" WHERE is_estimate = 0".into(), None, None),
+        (None, None)       => (String::new(), None, None),
     }
 }
 

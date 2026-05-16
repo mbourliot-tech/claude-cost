@@ -92,7 +92,7 @@ fn second_scan_is_idempotent() {
 fn summary_aggregates_match_scan_totals() {
     let db = TestDb::new();
     scanner::scan_all(&fixtures_dir(), &db.store).unwrap();
-    let s = db.store.summary(None, None).unwrap();
+    let s = db.store.summary(None, None, false).unwrap();
 
     assert_eq!(s.calls, 6);
     assert_eq!(s.sessions, 2);
@@ -111,7 +111,7 @@ fn summary_aggregates_match_scan_totals() {
 fn by_model_groups_and_sums_correctly() {
     let db = TestDb::new();
     scanner::scan_all(&fixtures_dir(), &db.store).unwrap();
-    let rows = db.store.by_model(None, None).unwrap();
+    let rows = db.store.by_model(None, None, false).unwrap();
 
     let model = |name: &str| {
         rows.iter()
@@ -188,7 +188,7 @@ fn by_session_filters_by_project() {
 fn since_filter_excludes_older_project() {
     let db = TestDb::new();
     scanner::scan_all(&fixtures_dir(), &db.store).unwrap();
-    let s = db.store.summary(Some("2026-05-11T00:00:00Z"), None).unwrap();
+    let s = db.store.summary(Some("2026-05-11T00:00:00Z"), None, false).unwrap();
     assert_eq!(s.calls, 3, "only proj-b records on or after 2026-05-11");
     assert!((s.total_cost_usd - PROJ_B_COST).abs() < EPS);
 }
@@ -197,7 +197,7 @@ fn since_filter_excludes_older_project() {
 fn until_filter_excludes_newer_project() {
     let db = TestDb::new();
     scanner::scan_all(&fixtures_dir(), &db.store).unwrap();
-    let s = db.store.summary(None, Some("2026-05-10T23:59:59Z")).unwrap();
+    let s = db.store.summary(None, Some("2026-05-10T23:59:59Z"), false).unwrap();
     assert_eq!(s.calls, 3, "only proj-a records on or before 2026-05-10");
     assert!((s.total_cost_usd - PROJ_A_COST).abs() < EPS);
 }
@@ -252,17 +252,18 @@ fn reinsert_with_different_cost_repricies_existing_row() {
         speed: None,
         web_search_requests: 0,
         web_fetch_requests: 0,
+        is_estimate: false,
     };
     let n1 = db.store.insert_batch(&[rec.clone()]).unwrap();
     assert_eq!(n1, 1, "first insert counts as a touched row");
-    assert!((db.store.summary(None, None).unwrap().total_cost_usd - 4.0).abs() < EPS);
+    assert!((db.store.summary(None, None, false).unwrap().total_cost_usd - 4.0).abs() < EPS);
 
     // Re-insert same message_id with new cost (e.g. after pricing.rs tier bump)
     rec.cost_usd = 8.0;
     let n2 = db.store.insert_batch(&[rec.clone()]).unwrap();
     assert_eq!(n2, 1, "reprice must count as touched");
     assert!(
-        (db.store.summary(None, None).unwrap().total_cost_usd - 8.0).abs() < EPS,
+        (db.store.summary(None, None, false).unwrap().total_cost_usd - 8.0).abs() < EPS,
         "summary must reflect the new cost, not the old one"
     );
 

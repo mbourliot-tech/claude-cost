@@ -63,6 +63,10 @@ struct Cli {
     /// Chemin vers la base SQLite
     #[arg(long, global = true)]
     db: Option<PathBuf>,
+
+    /// Inclure les coûts estimés des appels internes (away_summary, etc.)
+    #[arg(long, global = true, default_value_t = false)]
+    estimate_internal: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -135,11 +139,11 @@ async fn main() -> Result<()> {
         Cmd::Serve { port, rescan_interval, no_open } =>
             run_serve(store, projects_dir, port, rescan_interval, no_open).await?,
         Cmd::Summary { since, until } =>
-            cmd_summary(&store, since.as_deref(), until.as_deref())?,
+            cmd_summary(&store, since.as_deref(), until.as_deref(), cli.estimate_internal)?,
         Cmd::ByModel { since, until } =>
-            cmd_by_model(&store, since.as_deref(), until.as_deref())?,
+            cmd_by_model(&store, since.as_deref(), until.as_deref(), cli.estimate_internal)?,
         Cmd::Today =>
-            cmd_today(&store)?,
+            cmd_today(&store, cli.estimate_internal)?,
         Cmd::Live { interval, limit } =>
             cmd_live(store, projects_dir, interval, limit).await?,
     }
@@ -198,10 +202,10 @@ async fn run_serve(store: Arc<storage::Store>, projects_dir: PathBuf, port: u16,
 
 // ── CLI commands ──────────────────────────────────────────────────────────────
 
-fn cmd_summary(store: &storage::Store, since: Option<&str>, until: Option<&str>) -> Result<()> {
-    let s = store.summary(since, until)?;
+fn cmd_summary(store: &storage::Store, since: Option<&str>, until: Option<&str>, estimate_internal: bool) -> Result<()> {
+    let s = store.summary(since, until, estimate_internal)?;
     let overrides = store.price_overrides_map()?;
-    let by_model = store.by_model(since, until)?;
+    let by_model = store.by_model(since, until, estimate_internal)?;
 
     let mut savings = 0f64;
     let mut write_premium = 0f64;
@@ -237,12 +241,15 @@ fn cmd_summary(store: &storage::Store, since: Option<&str>, until: Option<&str>)
     println!("  {B}Cache hit{R}       {:>10}    {B}Tokens read{R} {:>8}", hit, fmt_tok(s.cache_read_tokens));
     println!("  {B}Économies brutes{R} {GRN}{:>+9}{R}    {B}Surcoût write{R} {YLW}{:>+6}{R}", fmt_usd(savings), fmt_usd(-write_premium));
     println!("  {B}Gain net cache{R}  {net_col}{:>+10}{R}", fmt_usd(net));
+    if estimate_internal {
+        println!(" {DIM}(inclut les estimations d'appels internes — away_summary){R}");
+    }
     println!();
     Ok(())
 }
 
-fn cmd_by_model(store: &storage::Store, since: Option<&str>, until: Option<&str>) -> Result<()> {
-    let rows = store.by_model(since, until)?;
+fn cmd_by_model(store: &storage::Store, since: Option<&str>, until: Option<&str>, estimate_internal: bool) -> Result<()> {
+    let rows = store.by_model(since, until, estimate_internal)?;
     if rows.is_empty() {
         println!("  {DIM}Aucune donnée.{R}");
         return Ok(());
@@ -269,15 +276,18 @@ fn cmd_by_model(store: &storage::Store, since: Option<&str>, until: Option<&str>
     }
     println!("  {}", "─".repeat(84));
     println!("  {B}{:<34} {:>9}  {:>7}{R}", "Total", fmt_usd(total_cost), total_calls);
+    if estimate_internal {
+        println!(" {DIM}(inclut les estimations d'appels internes — away_summary){R}");
+    }
     println!();
     Ok(())
 }
 
-fn cmd_today(store: &storage::Store) -> Result<()> {
+fn cmd_today(store: &storage::Store, estimate_internal: bool) -> Result<()> {
     let now = Utc::now();
     let since = now.format("%Y-%m-%dT00:00:00Z").to_string();
-    let rows = store.by_hour(Some(&since), None)?;
-    let sum = store.summary(Some(&since), None)?;
+    let rows = store.by_hour(Some(&since), None, estimate_internal)?;
+    let sum = store.summary(Some(&since), None, estimate_internal)?;
 
     if rows.is_empty() {
         println!("  {DIM}Aucun appel aujourd'hui.{R}");
@@ -302,6 +312,9 @@ fn cmd_today(store: &storage::Store) -> Result<()> {
         "Total", fmt_usd(sum.total_cost_usd), fmt_tok(sum.input_tokens),
         fmt_tok(sum.output_tokens), fmt_tok(sum.cache_read_tokens),
         hit_str(sum.cache_read_tokens, sum.input_tokens));
+    if estimate_internal {
+        println!(" {DIM}(inclut les estimations d'appels internes — away_summary){R}");
+    }
     println!();
     Ok(())
 }

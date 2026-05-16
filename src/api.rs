@@ -57,6 +57,7 @@ pub fn router(store: Arc<Store>, projects_dir: PathBuf) -> Router {
 struct Range {
     since: Option<String>,
     until: Option<String>,
+    estimate_internal: Option<bool>,
 }
 
 async fn serve_index() -> Response {
@@ -85,12 +86,14 @@ fn serve_embedded(name: &str) -> Response {
 }
 
 async fn api_summary(State(s): State<AppState>, Query(r): Query<Range>) -> Result<Json<serde_json::Value>, ApiErr> {
-    let sum = s.store.summary(r.since.as_deref(), r.until.as_deref())?;
+    let incl = r.estimate_internal.unwrap_or(false);
+    let sum = s.store.summary(r.since.as_deref(), r.until.as_deref(), incl)?;
     Ok(Json(serde_json::to_value(sum)?))
 }
 
 async fn api_by_model(State(s): State<AppState>, Query(r): Query<Range>) -> Result<Json<serde_json::Value>, ApiErr> {
-    let rows = s.store.by_model(r.since.as_deref(), r.until.as_deref())?;
+    let incl = r.estimate_internal.unwrap_or(false);
+    let rows = s.store.by_model(r.since.as_deref(), r.until.as_deref(), incl)?;
     Ok(Json(serde_json::to_value(rows)?))
 }
 
@@ -159,7 +162,8 @@ async fn api_recent_calls(State(s): State<AppState>, Query(q): Query<RecentQuery
 }
 
 async fn api_cache_stats(State(s): State<AppState>, Query(r): Query<Range>) -> Result<Json<serde_json::Value>, ApiErr> {
-    let by_model = s.store.by_model(r.since.as_deref(), r.until.as_deref())?;
+    let incl = r.estimate_internal.unwrap_or(false);
+    let by_model = s.store.by_model(r.since.as_deref(), r.until.as_deref(), incl)?;
     let overrides = s.store.price_overrides_map()?;
 
     let mut total_cache_read: u64 = 0;
@@ -204,7 +208,8 @@ async fn api_cache_stats(State(s): State<AppState>, Query(r): Query<Range>) -> R
 }
 
 async fn api_by_hour(State(s): State<AppState>, Query(r): Query<Range>) -> Result<Json<serde_json::Value>, ApiErr> {
-    let rows = s.store.by_hour(r.since.as_deref(), r.until.as_deref())?;
+    let incl = r.estimate_internal.unwrap_or(false);
+    let rows = s.store.by_hour(r.since.as_deref(), r.until.as_deref(), incl)?;
     Ok(Json(serde_json::to_value(rows)?))
 }
 

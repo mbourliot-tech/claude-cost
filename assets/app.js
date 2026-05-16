@@ -5,7 +5,7 @@ const TRANSLATIONS = {
     'tab.overview': "Vue d'ensemble", 'tab.sessions': "Sessions", 'tab.plans': "Plans", 'tab.alerts': "Alertes",
     'ctrl.period': "Période", 'ctrl.today': "Aujourd'hui", 'ctrl.7d': "7 jours", 'ctrl.30d': "30 jours",
     'ctrl.month': "Ce mois", 'ctrl.all': "Tout", 'ctrl.day': "Jour précis…",
-    'ctrl.rescan': "Rescan", 'ctrl.prices': "Prix des modèles", 'ctrl.live': "Temps réel",
+    'ctrl.rescan': "Rescan", 'ctrl.prices': "Prix des modèles", 'ctrl.live': "Temps réel", 'ctrl.estimates': "+overhead",
     'kpi.cost': "Coût total", 'kpi.calls': "Appels API", 'kpi.sessions': "Sessions", 'kpi.tokens': "Tokens (entrée + sortie)",
     'cache.hitrate': "Cache hit rate", 'cache.read': "Tokens lus depuis cache", 'cache.savings': "Économies brutes",
     'cache.write': "Surcoût écriture", 'cache.net': "Gain net cache",
@@ -65,7 +65,7 @@ const TRANSLATIONS = {
     'tab.overview': "Overview", 'tab.sessions': "Sessions", 'tab.plans': "Plans", 'tab.alerts': "Alerts",
     'ctrl.period': "Period", 'ctrl.today': "Today", 'ctrl.7d': "7 days", 'ctrl.30d': "30 days",
     'ctrl.month': "This month", 'ctrl.all': "All", 'ctrl.day': "Specific day…",
-    'ctrl.rescan': "Rescan", 'ctrl.prices': "Model prices", 'ctrl.live': "Live",
+    'ctrl.rescan': "Rescan", 'ctrl.prices': "Model prices", 'ctrl.live': "Live", 'ctrl.estimates': "+overhead",
     'kpi.cost': "Total cost", 'kpi.calls': "API calls", 'kpi.sessions': "Sessions", 'kpi.tokens': "Tokens (in + out)",
     'cache.hitrate': "Cache hit rate", 'cache.read': "Tokens read from cache", 'cache.savings': "Gross savings",
     'cache.write': "Write overhead", 'cache.net': "Net cache gain",
@@ -123,8 +123,9 @@ const TRANSLATIONS = {
   },
 };
 
-let currentLang  = localStorage.getItem('cc-lang')  || 'fr';
-let currentTheme = localStorage.getItem('cc-theme') || 'dark';
+let currentLang      = localStorage.getItem('cc-lang')      || 'fr';
+let currentTheme     = localStorage.getItem('cc-theme')     || 'dark';
+let currentEstimates = localStorage.getItem('cc-estimates') === 'true';
 
 function t(key) { return TRANSLATIONS[currentLang][key] ?? TRANSLATIONS['fr'][key] ?? key; }
 
@@ -260,7 +261,7 @@ function prevPeriodParams(period, range) {
 async function refresh() {
   const period = $("#period").value;
   const range = periodToRange(period);
-  const params = { since: range.since, until: range.until };
+  const params = { since: range.since, until: range.until, estimate_internal: currentEstimates || undefined };
   const isToday = range.hourly === true;
   const prevP = prevPeriodParams(period, range);
   const sessLimit = parseInt($("#sessions-limit")?.value, 10) || 50;
@@ -690,8 +691,9 @@ setInterval(async () => {
 
 // ── Sélecteurs langue / thème ─────────────────────────────────────────────────
 
-document.getElementById("lang-select").value = currentLang;
-document.getElementById("theme-select").value = currentTheme;
+document.getElementById("lang-select").value    = currentLang;
+document.getElementById("theme-select").value   = currentTheme;
+document.getElementById("estimate-toggle").checked = currentEstimates;
 
 document.getElementById("lang-select").addEventListener("change", (e) => {
   applyLang(e.target.value);
@@ -701,6 +703,12 @@ document.getElementById("lang-select").addEventListener("change", (e) => {
 
 document.getElementById("theme-select").addEventListener("change", (e) => {
   applyTheme(e.target.value);
+  refresh().catch(() => {});
+});
+
+document.getElementById("estimate-toggle").addEventListener("change", (e) => {
+  currentEstimates = e.target.checked;
+  localStorage.setItem('cc-estimates', currentEstimates);
   refresh().catch(() => {});
 });
 

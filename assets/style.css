@@ -89,6 +89,10 @@ header h1 {
 .controls { display: flex; gap: 12px; align-items: center; }
 .controls label { display: flex; gap: 6px; align-items: center; color: var(--muted); }
 .settings-group { display: flex; gap: 4px; align-items: center; border-left: 1px solid var(--border); padding-left: 10px; margin-left: 2px; }
+.toggle-label { display: flex; gap: 5px; align-items: center; color: var(--muted); font-size: 12px; cursor: pointer; padding: 4px 6px; border-radius: 6px; border: 1px solid transparent; }
+.toggle-label:hover { border-color: var(--border); }
+.toggle-label input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+.toggle-label input[type=checkbox]:checked + span { color: var(--accent); }
 .settings-group select {
   background: transparent;
   color: var(--muted);

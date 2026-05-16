@@ -26,6 +26,10 @@
       <button id="open-prices"><span data-i18n="ctrl.prices">Prix des modèles</span> <span id="unknown-badge" class="badge-count hidden">0</span></button>
       <a href="/live" class="btn-live" data-i18n="ctrl.live">Temps réel</a>
       <div class="settings-group">
+        <label class="toggle-label" title="Inclure les appels internes estimés (away_summary, agent-name, ai-title)">
+          <input type="checkbox" id="estimate-toggle" />
+          <span data-i18n="ctrl.estimates">+overhead</span>
+        </label>
         <select id="lang-select" title="Language">
           <option value="fr">🇫🇷 FR</option>
           <option value="en">🇬🇧 EN</option>
