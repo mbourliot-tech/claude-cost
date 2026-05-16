@@ -56,9 +56,8 @@ pub fn parse_file(
         if raw.kind.as_deref() != Some("assistant") {
             continue;
         }
-        match raw.message.as_ref().and_then(|m| m.id.as_ref()) {
-            Some(id) => { last_by_id.insert(id.clone(), raw); }
-            None => {} // build_record requires message.id — will return None
+        if let Some(id) = raw.message.as_ref().and_then(|m| m.id.as_ref()) {
+            last_by_id.insert(id.clone(), raw);
         }
     }
 
